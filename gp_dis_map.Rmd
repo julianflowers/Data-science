@@ -1,0 +1,126 @@
+---
+title: "GP prevalence estimates from Imperial College"
+author: "Julian Flowers"
+date: "14 March 2017"
+output:
+  html_document:
+    toc: yes
+  word_document:
+    fig_caption: yes
+    toc: yes
+---
+ 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+ 
+Sys.setenv(http_proxy="http://158.119.150.18:8080")
+Sys.setenv(https_proxy="https://158.119.150.18:8080")
+```
+ 
+# Introduction
+ 
+This short report presents a brief analysis of the GP level prevalence estimates fom Imperial College provided to PHE. There are estimates for:
+ 
+* CHD (age 55-79)
+* stroke (age 55 - 79)
+* peripheral arterial disease (age 55 -79)
+* depression
+* COPD
+* hypertension - diagnosed and undiagnosed
+ 
+The method for calculating these estimates are described elsewhere.
+ 
+The data is available at...
+ 
+```{r, include=FALSE, warning = FALSE, message= FALSE}
+library(readr)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(ggmap)
+##library(container)
+ 
+ 
+ 
+setwd("~/Prev_est")
+data <- read_csv("2017-03-14 gp_prev_ests.csv")
+data_qa <- read_csv("gp.estimates2017-03-14.csv")
+options(digits = 3)
+ 
+```
+ 
+The maximum number of practices for which estimates are available is `r nrow(data_qa)`, but for some diseases there are fewer. The counts are shown in the table.
+ 
+ 
+ 
+```{r}
+## count practices in `data_qa`
+ 
+data_qa %>%
+    purrr::map_df(function(x) sum(!is.na(x))) %>%
+    select(practice_code, contains("estimate")) %>%
+    gather(disease, count, 2:9) %>%
+    select(-practice_code) %>%
+    knitr::kable(format = "pandoc",
+                 caption = "Practice counts by disease")
+   
+ 
+```
+ 
+ 
+ 
+## Summary statistics
+ 
+Hypertension and depression have the highest prevalence in this group of disase estimates.
+ 
+```{r}
+data %>%
+    group_by(disease.x) %>%
+    summarise(practices_count = n(),
+              meanprev = mean(prevalence, na.rm = TRUE),
+              sdprev = sd(prevalence, na.rm = TRUE),
+              medianprev = median(prevalence, na.rm = TRUE),
+              minprev = min(prevalence, na.rm = TRUE),
+              maxprev = max(prevalence, na.rm = TRUE),     
+              range = max(prevalence, na.rm = TRUE) - min(prevalence, na.rm = TRUE),
+              IQR = quantile(prevalence, probs = 0.75, na.rm = TRUE) - quantile(prevalence, probs = 0.25, na.rm = TRUE))
+ 
+                
+ 
+```
+ 
+We can show the distribution of prevalences for each disease as distrbution plots.
+ 
+```{r}
+data %>%
+    ggplot(aes(disease.x, prevalence, fill = disease.x)) +
+    geom_violin(draw_quantiles = c(0.1, 0.5, 0.9)) +
+    labs(y = "Prevalence (%)",
+         x = "",
+         title = "Violin plots of variation in practice level disease prevalence") +
+    scale_y_log10()
+   
+    
+    
+```
+ 
+And plot as maps
+ 
+```{r}
+gpdata <- read_delim("C:/Users/julian.flowers/Downloads/GP.csv",  "\t", escape_double = FALSE, trim_ws = TRUE)
+ 
+gpdata <- gpdata %>% clean_names()
+ 
+gddata1 <- gpdata %>%
+    left_join(data_qa, by = c("organisationcode" = "practice_code"))
+   
+ 
+loc <- gpdata %>% select(latitude, longitude)
+loc <- slice(loc, 5:30)
+##mymap <- get_map("London")
+##ggmap(mymap) + geom_jitter(aes( y = latitude, x= longitude), colour = organisationtype,
+                          data = gpdata, size = 1, alpha = 0.5
+                          ) + coord
+```
+ 
+ 

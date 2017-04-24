@@ -1,0 +1,58 @@
+---
+title: "Eurostat R package"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+# Introduction
+Eurostat data
+
+```{r "setup"}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE)
+
+library(eurostat)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(rvest)
+library(httr)
+library(trelliscopejs)
+
+options(scipen = 3)
+```
+
+
+
+```{r "view available health data"}
+
+toc <- get_eurostat_toc()
+
+toc %>% filter(grepl("hlth", code) & type == "dataset")
+
+```
+
+```{r "hospitalisation rate"}
+
+## Extract data
+
+
+data <- get_eurostat("hlth_co_disch2t", type = "label", time_format = "num") ## this downloads > 6.6 million rows of data
+
+Hmisc::describe(data)
+
+## Data is inpatients admission rate, by age, by region, for 150 reasons for admission, from 2000 - 2014
+```
+
+To plot all the time series potentially means `r 150 * 184 * 23` charts, which we can create with `trelliscopejs` (although this will take several hours). To illustrate we'll look at admissions for acloholic liver disease (takes several minutes).
+
+```{r "trellis charts"}
+data %>%
+  filter(icd10 == "Alcoholic liver disease") %>%
+  ggplot(aes(time, values)) +
+  geom_line() 
+  facet_trelliscope(~geo + age)
+  
+
+
+```
+

@@ -1,0 +1,266 @@
+---
+title: "K&I User statistics"
+output:
+  pdf_document: 
+    latex_engine: 
+  html_notebook: default
+  html_document: default
+  word_document: default
+  
+  
+---
+
+`r paste("Date run:", lubridate::today())`
+
+This report presents summary statistics for 10 K&I websites which currently account for the majority of web hits for K&I products.
+The sites are:
+
+- [Fingertips](http://fingertips.phe.org.uk)
+- [PHOF](http://www.phoutcomes.info)
+- [NOO](http://www.noo.org.uk)
+- [CHimat](http://www.chimat.org.uk)
+- [Local health](http://www.localhealth.org.uk)
+- [YHPHO](http://www.yhpho.org.uk)
+- [Healthier lives](http://healthierlives.phe.org.uk)
+- [End of life intelligence network](http://www.endoflifecare-intelligence.org.uk/home)
+- [Tobacco profiles](http://www.tobaccoprofiles.info)
+- [SHAPE](https://shape.phe.org.uk/)
+
+(Note: PHOF, Healthier lives and Tobacco profiles are built on the Fingertips platform)
+
+The report shows:
+
+*Summary statistics*
+
+1. Hits for yesterday, 30 days ago, 365 days ago, and % change from this day last year for each site
+2. Hits for the last month and the last year for each site 
+3. Global hits for all sites combined
+
+
+*Heat maps and charts* 
+
+1. Weekly Google searches. 
+2. Searches and downloads on Fingertips and PHOF
+3. Daily hits since April 2013 represented as a 'calendar' heatmap
+4. Dwell time
+
+*Highlights*
+
+* Collective use of the 'top ten' K&I sites is about 25,000 hits and 10 person days per day (ie equivalent of 10 people spending 24 hours on the sites each day - or 1000 people spending 15 minutes)
+* There has been considerable increase in total time on sites over the last year
+* The most popular sites are NOO and Fingertips
+* Hits and dwell time on Fingertips has grown rapidly in the last year as the number of profiles avaiable has grown - now 64.
+
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE)
+
+suppressPackageStartupMessages(c(library(data.table),
+  library(dplyr) ,        # data manipulation
+  library(lubridate),    # date manipulation
+  library(tidyr),      # reshaping
+  library(RGA),          # access to Google analystics API
+  library(gridExtra),    # chart layout
+  library(ggplot2),      # charting
+  library(viridis),
+  library(ggfortify),     # charting extras
+  library(ggTimeSeries)))  # charting extras
+```
+
+
+```{r}
+## authorise access to google API
+ga_token <- authorize(client.id = "934830359575-tbflfk33ce99kgatrte3ecpt4gj5kdhf.apps.googleusercontent.com", client.secret = "l5BP84XI1I5d0qrC3f21s9Gp", cache = TRUE)
+
+## extract profile ids, website urls and site names
+
+  lookup <- list_profiles() %>%
+    select(name,  id, websiteUrl)
+  
+```
+
+```{r extract users and pageviews, cache= TRUE, include=FALSE}
+library(lubridate)
+ids <- c("12177926","32366919","35885149","17588911","102894568","35140940","47898340","65073818","68505331","78054916","93017633")
+
+lookup1 <- lookup %>% filter(id %in% ids)
+
+
+  
+  ## extract data and create data table
+  ##ids <- as.character(lookup1[,"id"])
+  df <- data.frame()
+
+for(i in 1:length(ids)) {
+  id<-ids[i]
+  first <- firstdate(id)
+  ga <- get_ga(id, start.date = first, end.date = "today",
+            metrics = "ga:users,
+            ga:sessions,
+            ga:avgTimeonPage,
+            ga:pageviews",
+            dimension = "ga:date" )
+  ga <- cbind(id, ga)
+  df <- rbind(df, ga)
+}
+  
+df <- df %>% 
+  left_join(lookup1) %>% 
+  unite("webname", name:websiteUrl, sep = "_")
+
+```
+
+```{r, cache=TRUE, include=FALSE}
+ids <- c("65073818","78054916") 
+  ## extract data and create data table
+  ##ids <- as.character(lookup1[,"id"])
+ events <- data.frame()
+
+for(i in 1:length(ids)) {
+  id<-ids[i]
+  first <- firstdate(id)
+  ga <- get_ga(id, start.date = first, end.date = "today",
+            metrics = "ga:totalEvents",
+            dimension = "ga:date, ga:eventCategory", fetch.by = "month" )
+  ga <- data.frame(cbind(id, ga))
+  events <- bind_rows(events, ga)
+}
+
+## convert to data_frame format
+
+events <- events %>%
+  left_join(lookup1)
+
+```
+```{r, cache=TRUE}
+## Extract specific date values
+
+options(digits = 2)
+
+df1 <- df %>% 
+  filter(!webname == "www.improvinghealthandlives.org.uk_http://www.improvinghealthandlives.org.uk") %>%
+  mutate(yesterday = ifelse(date == lubridate::today() - 1, 1, 0), 
+         last_month = ifelse(date == lubridate::today() - 30, 1, 0), 
+         last_year = ifelse(date == lubridate::today() - 365 , 1, 0), 
+         lastmonth = ifelse(date > lubridate::today() - 30, 1, 0), 
+         lastyear = ifelse(date >= lubridate::today() - 365, 1, 0)) %>% 
+  select(webname, date, pageviews,  yesterday:lastyear) %>%
+  gather(period, views, yesterday:lastyear) %>%
+  filter(views == 1) %>%
+  group_by(webname, period) %>%
+  summarise(views = sum(pageviews)) %>%
+  spread(period, views) %>%
+  select(webname, Yesterday = yesterday, `30 days ago` = last_month, 
+         `A year ago` = last_year, 
+         `Last month` = lastmonth, 
+         `Total last 365 days` = lastyear) %>%
+  mutate(`Year on year change (%)` = 100 * (Yesterday - `A year ago`)/ `A year ago`) %>%
+  arrange(-`Total last 365 days`) %>%
+  as.data.frame()
+
+  rownames(df1) <- c("Fingertips", "NOO", "CHimat",  "Local health", "PHOF", "YHPHO", "End of Life", "Healthier Lives", "Tobacco", "SHAPE")
+  
+  df1 <- df1 %>% select(-webname) 
+  
+
+```
+
+```{r, echo=FALSE}
+knitr::kable(df1, format = "markdown", digits = 2)
+
+```
+
+```{r Searches, fig.width = 8, fig.align= "center"}
+
+events %>%
+  filter(eventCategory %in% c("Search", "Download")) %>%
+  ggplot(aes(date, totalEvents)) +
+  geom_line(aes(colour = name)) +
+  geom_smooth(aes(group = name)) +
+  facet_wrap(~eventCategory) +
+  labs(y = "Daily events", 
+       x = "Date", 
+       title = "Daily searches and downloads from Fingertips and PHOF sites")
+ 
+```
+
+```{r fig.height=6, fig.width=6, message=FALSE, warning=FALSE}
+options(scipen = 2)
+
+df %>%
+  mutate(total_page_time = avgTimeonPage*pageviews) %>%
+  group_by(date) %>%
+  summarise(`Dwell time` = sum(total_page_time)) %>%
+  ggplot(aes(date, `Dwell time`)) +
+  geom_line(colour = 'lightgrey', alpha = 0.3) + 
+  geom_smooth() +
+  labs(title = "Combined dwell time on sites", 
+       subtitle = "Minutes of use per day") +
+  theme_bw()
+
+
+
+
+```
+
+```{r Total hits, fig.width = 6,fig.align="center"}
+df_filt <- df %>%
+  filter(date >= "2013-04-01")
+
+df_filt %>% 
+  mutate(date = lubridate::ymd(substr(date, 1, 10))) %>%
+  group_by(date) %>%
+  summarise(Pageviews = sum(pageviews)) %>%
+  ggplot_calendar_heatmap("date", "Pageviews") +
+  scale_fill_continuous(low = "red", high = "green") +
+  facet_wrap(~Year, ncol = 1) +
+  ggtitle("Total pageviews of K&I web products")
+
+
+
+```
+
+```{r PHOF, fig.width=6, fig.align="center"}
+
+df_filt %>%
+  filter(webname == "PHOF_http://www.phoutcomes.info") %>%
+    mutate(date = lubridate::ymd(substr(date, 1, 10))) %>%
+  group_by(date) %>%
+  summarise(Pageviews = sum(pageviews)) %>%
+  ggplot_calendar_heatmap("date", "Pageviews") + 
+  scale_fill_continuous(low = "red", high = "green") + 
+  facet_wrap(~Year, ncol = 1) +
+  ggtitle("Total pageviews: PHOF")
+
+```
+
+```{r Fingertips, fig.width=6, fig.align="center"}
+
+
+df_filt %>%
+  filter(webname == "Fingertips site data_https://phe.org.uk") %>%
+    mutate(date = lubridate::ymd(substr(date, 1, 10))) %>%
+  group_by(date) %>%
+  summarise(Pageviews = sum(pageviews)) %>%
+  ggplot_calendar_heatmap("date", "Pageviews") + 
+  scale_fill_continuous(low = "red", high = "green") + 
+  facet_wrap(~Year, ncol = 1) +
+  ggtitle("Total pageviews: Fingertips")
+```
+
+```{r Local Health, fig.width=6, fig.align="center"}
+
+df_filt %>%
+  filter(webname == "www.localhealth.org.uk_http://www.localhealth.org.uk") %>%
+    mutate(date = lubridate::ymd(substr(date, 1, 10))) %>%
+  group_by(date) %>%
+  summarise(Pageviews = sum(pageviews)) %>%
+  ggplot_calendar_heatmap("date", "Pageviews") + 
+  scale_fill_continuous(low = "red", high = "green") + 
+  facet_wrap(~Year, ncol = 1) +
+  ggtitle("Total pageviews: Local Health")
+
+
+```
