@@ -1,0 +1,291 @@
+---
+title: "R markdown report using fingertipsR"
+author: "Julian Flowers"
+date: "3 April 2017"
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+bibliography: md.bib    
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir = "~/rmd")
+```
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE) ## sets up document to display all code and cache the data and code - this makes it quicker to run
+
+
+
+```
+
+# Introduction
+
+The Government Digital Service (GDS) is promoting a [new analyical workflow based on R Markdown](https://gdsdata.blog.gov.uk/2017/03/27/reproducible-analytical-pipeline/). R Markdown is a way of writing reports using R statistical software and [RStudio](https://www.rstudio.com/) which combines analysis and reporting in a single document which can be automated, reproduced and output in *html* format or as *word* or *pdf* documents.
+
+The proposal is that the current flow for reporting and creation of output is simplified from something like this.... 
+
+![](sMMBa2xfksovCZRW-cYJFNA.png) 
+
+<br>
+to this:
+
+![](spdVp_pexfJNpJjIxNp1rbQ.png)
+<br>
+
+The proposed data flow means that documents can be easily prepared in an appropriate format for publication to .gov.uk. The GDS data science team have produced some graphical templates for use on the *gov.uk* platform. This approach cuts down the number of steps involved in creating reports, reduces the risk of error, improves quality assurance, and can be automated to produce multiple reports in one go, or adapted as a template to report on different topics or issues without too much effort.
+
+The `knitr` package greatly facilitates the production of high quality reports in different formats - the schematic below shows the options.
+
+![](knitr-workflow.png)
+
+## Fingertips
+
+[Fingertips](https://fingertips.phe.org.uk) is a major publication platform for Official Statistics in PHE which currently supports a range of visualisation and graphical pdf reports but producing does not support commentary, analysis and interpretation alongside the publication of the statistical data.
+
+We have produced an R package  - `fingertipsR` - to facilitate data extraction from the [Fingertips Automated Programming Interface (API)](https://fingertips.phe.org.uk/api).
+
+# Getting started
+
+This report shows how to:
+
+* extract data from the API using the `fingertipsR` package
+* report using `rmarkdown`
+
+## R and markdown basics
+
+A good starting point for R Markdown is the [Cheat Sheet](https://www.rstudio.com/wp-content/uploads/2016/03/rmarkdown-cheatsheet-2.0.pdf). There are 3 parts to any markdown document:
+
+1. The **header** - this contains important information about the title, author, date of the report, and controls the output format and style of the document.
+2. **Standard html** text for commentary
+3. **Code chunks** - this runs the analytical R code to import and manipulate data, create analysis and produce visualisations like charts and maps 
+
+In addition R code can be run inside the text to produce figures and tables.
+
+R needs additional `packages`[^1] to perform some functions - these have to be loaded before they can be used. For this analysis we will use:
+
+* `fingertipsR`
+* `ggplot2`
+* `dplyr`
+* `readr`
+* `govstyle` 
+
+The latter is a ggplot2 theme which complies with gov.uk colours and layouts
+
+```{r libraries, message=FALSE, warning=FALSE}
+
+library(dplyr)
+library(ggplot2)
+##library(fingertipsR)
+library(readxl)
+library(readr)
+if(!require('govstyle')) devtools::install_github(repo = "ivyleavedtoadflax/govstyle")
+
+library(govstyle)
+
+```
+
+## Extracting data from Fingertips using the automated programming interface (API)
+
+To do this we will use the`fingertipsR` package, and extract data for teenage conceptions. There are 3 steps:
+
+1. We need to identify an ID number in Fingertips for the teenage conceptions data using the `indicators` function 
+2. Identify area type codes - we'll use data for lower tier LAs, with regions as a 'parent' using the `area_types` function
+3. Extract the data using the `fingertips_data` function
+
+This returns all the relevant data in a 'tidy' data format. [@Wickham2014]
+
+```{r}
+library(stringr)
+
+# which indicator ID is teenage pregnancy?
+# ind <- indicators()
+# ind <- ind[str_detect(ind$IndicatorName, "Rate of conceptions per"),] ## identify relevant indicator ID
+# 
+# areas <- area_types("district") ## Identify area type code
+# 
+# df <- fingertips_data(IndicatorID = 20401,
+#                       AreaTypeID = 101,
+#                       ParentAreaTypeID = 6) ## download the dataset
+```
+
+We can check that we have the correct indicator:
+
+```{r message=FALSE, warning=FALSE}
+df <- read_csv("~/Downloads/Teenage_pregnancy.zip")
+df %>% 
+  glimpse 
+```
+
+And do some data exploration and filtering to understand the dataset and extract exactly what we need. We'll look at the `CategoryType` variable. This shows that there are 5 different assignments of LAs to deprivation deciles based on the level of disaggregation and the deprivation score.
+
+```{r results = "asis"}
+df %>% 
+  select(CategoryType,Category) %>%
+  unique() %>%
+  knitr::kable()
+
+```
+
+To plot trends in under 18 conception rates by deprivation decile we need to decide which deprivation classification to choose. We can plot the different options. This shows that for national data the longest time series (1998 - 2014) is only available for IMD2010 scores; data for 2015 is only available for 2014 and 2015. To plot the time series we therefore need to use IMD2010 scores. The rates for categorisation based on couny/UA or districts are similar. The sharp reduction in under 18 conception rates in the most deprived decile since 2007 is evident.
+
+```{r}
+df %>%
+  filter(AreaName =="England" & stringr::str_detect(Category,"Most deprived decile | Least deprived decile")) %>%
+  ggplot(aes(Timeperiod, Value)) +
+  geom_point(aes(colour = Category)) +
+  geom_line(aes(lty = CategoryType)) +
+  labs(title = "Trend in under 18 conceptions in \nmost deprived decile", 
+       y = "Under 18 conceptions per 100,000")
+```
+
+
+Next we can choose a single area and plot the trend - we'll use England as an example. We need to filter the data to choose an area and in this case we'll used deprivation deciles.
+
+## Plot the data using the `govstyle` theme
+
+We can now plot the data with `ggplot2` and apply the `govstyle` theme.
+
+```{r}
+
+plot <- df %>%
+  filter(AreaName == "England" & !is.na(Value) & CategoryType == "County & UA deprivation deciles in England (IMD2010)") %>%
+  ggplot(aes(Timeperiod, Value,colour = Category)) +
+  geom_line(aes( group = Category)) +
+  theme_gov() +
+  expand_limits(y = c(0, 70), x = c(1990, 2015)) +
+  labs(y = "Teenage pregnancy rate", 
+       x = "Year",
+       title = "Trends in teenage pregnancy rate by deprivation decile\n1998-2014") 
+
+plot + 
+  geom_text(data = df %>% filter( Timeperiod == "1998" & CategoryType == "County & UA deprivation deciles in England (IMD2010)" ), 
+            size  = 2, 
+            aes(
+      label = Category,
+    hjust = 1,
+    vjust = 0,
+    fontface = "bold"
+  )) 
+
+
+```
+
+## Adding commentary
+
+[Commentary can be easily added and the analysis or outputs coded into the text so it can be consistent with the analysis and automatically updated]. 
+
+> For example:
+Under 18 conception rates have fallen substantially since 1998 and the 'gap' between rates the most and least deprived tenths of areas has fallen from `r round(df[df$AreaName == "England" & df$CategoryType == "District & UA deprivation deciles in England (IMD2010)" & df$Category == "Most deprived decile (IMD2010)" & df$Timeperiod == 2008,]$Value[2], 2)` conceptions per 100,000 in 2008 to  `r round(df[df$AreaName == "England" & df$CategoryType == "District & UA deprivation deciles in England (IMD2010)" & df$Category == "Most deprived decile (IMD2010)" & df$Timeperiod == 2014,]$Value[2], 2)` in 2014.
+
+## Simple mapping of LA data
+
+To enhance our report we can add maps.
+
+```{r plot trends in LA rates as a series of maps, fig.width=8, cache=TRUE}
+library(rgdal)
+library(geojsonio)
+library(ggmap)
+library(ggfortify)
+library(viridis)
+
+shape_file <- geojson_read("http://geoportal.statistics.gov.uk/datasets/686603e943f948acaa13fb5d2b0f1275_3.geojson", what = "sp")
+
+
+seng <- subset(shape_file, substr(lad16cd, 1, 1) == "E")
+
+seng1 <- fortify(seng, region = "lad16cd")
+
+df_la <- df %>%
+  filter(AreaType == "District & UA" & Timeperiod != 2015)
+
+s2 <- seng1 %>%
+  left_join(df_la, by = c("id" = "AreaCode"))
+
+g <- ggplot() +
+  geom_polygon(data = s2, 
+               aes(long, lat, 
+               group = group,
+               fill = Value)) +
+  coord_map() +
+  facet_wrap(~Timeperiod, nrow = 3)  
+
+g +
+  theme_gov() +
+  theme(axis.text = element_blank()) + 
+  theme(axis.ticks = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  labs(x = "", y = "", title = "Trend in under 18 conception rates by local authority") +
+  theme(legend.position = "bottom") +
+  viridis::scale_fill_viridis(direction = -1 )
+  
+
+```
+
+
+
+
+## Automation
+
+Let us say we want to create the same plots for every area. This can be achieved with a **for** loop. 
+
+```{r}
+# ## Single area
+# 
+# df %>%
+#   filter(AreaName == "Cambridge" & !is.na(Value) & AreaType == "District & UA") %>%
+#   ggplot(aes(Timeperiod, Value)) +
+#   geom_line() +
+#   theme_gov() +
+#   expand_limits(y = c(0, 70), x = c(1996, 2015)) +
+#   labs(y = "Teenage pregnancy rate", 
+#        x = "Year",
+#        title = paste0("Trends in teenage pregnancy rate\n1998-2015: ", "Cambridge")) + 
+#   geom_text(data = df %>% filter( (Timeperiod == "1998"|Timeperiod == "2015") & AreaName == "Cambridge" ), 
+#             size  = 3, 
+#             aes(
+#       label = round(Value,2), 
+#     hjust = 0.5,
+#     vjust = 0,
+#     fontface = "bold"))
+```
+
+
+```{r}
+
+## Example areas
+areas <- c("Cambridge","East Cambridgeshire", "Fenland", "Blackburn with Darwen" )
+
+for(area in areas){
+  
+  print(df %>%
+  filter(AreaName == area & !is.na(Value) & AreaType == "District & UA") %>%
+  ggplot(aes(Timeperiod, Value)) +
+  geom_line() +
+  theme_gov() +
+  expand_limits(y = c(0, 70), x = c(1997, 2015)) +
+  labs(y = "Teenage pregnancy rate", 
+       x = "Year",
+       title = paste0("Trends in teenage pregnancy rate\n1998-2015: ", area)) + 
+  geom_text(data = df %>% filter( (Timeperiod == "1998"|Timeperiod == "2015") & AreaName == area ), 
+            size  = 3, 
+            aes(
+      label = round(Value,2), 
+    hjust = 0.5,
+    vjust = 0, 
+    fontface = "bold")) +
+    geom_smooth(lwd = 0.5, lty = "dotted")
+  )
+    }
+  
+
+
+
+
+```
+
+# References
+
+[^1]: A package is a set of functions for a specific purpose
