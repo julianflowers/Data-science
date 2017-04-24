@@ -1,0 +1,223 @@
+---
+title: "Web scraping from the TRIP dataabse with rvest"
+author: "Julian Flowers"
+date: "21/04/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
+## Based on this video
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/MFQTHrCiAxA" frameborder="0" allowfullscreen></iframe>
+
+and utilising the [Trip database](https://www.tripdatabase.com).
+
+```{r}
+library(rvest)
+library(httr)
+library(XML)
+library(xml2)
+library(dplyr)
+library(ggplot2)
+library(govstyle)
+
+search_term <- "population+health+data+science"
+
+url <- paste0("https://www.tripdatabase.com/search/xml?key=PHE31413&criteria=", search_term, "&max=5000")
+
+search <- read_xml(url)
+
+```
+
+
+## Abstract latest 5000 titles
+```{r}
+search1 <- search %>%
+  xml_contents() %>%
+  xml_nodes("id") 
+
+search_list <- as_list(search1) 
+
+# Clunky
+## Extract IDs
+df <- list()
+for(i in 1:5000){
+  
+  x <- search_list[[i]][[1]][1]
+  df <- data.frame(rbind(df, x))
+
+}
+ 
+df <- df %>% unlist() %>% data.frame() %>%
+  distinct()
+
+colnames(df) <- "id"
+
+## Extract title
+
+search2 <- search %>%
+  xml_contents() %>%
+  xml_nodes("title") %>%
+  as_list()
+
+df2 <- list()
+for(i in 1:5000){
+  
+  x <- search2[[i]][[1]][1]
+  df2 <- data.frame(rbind(df2, x))
+
+}
+ 
+df2 <- df2 %>% unlist() %>% data.frame() 
+
+colnames(df2) <- "title"
+
+
+
+## Extract publication date
+
+search3 <- search %>%
+  xml_contents() %>%
+  xml_nodes("pubDate") %>%
+  as_list()
+
+df3 <- list()
+for(i in 1:5000){
+  
+  x <- search3[[i]][[1]][1]
+  df3 <- data.frame(rbind(df3, x))
+
+}
+ 
+df3 <- df3 %>% unlist() %>% data.frame()
+
+colnames(df3) <- "pubDate"
+  
+
+## Put it together as a data frame
+
+pubs <- bind_cols(df, df2, df3)
+
+pubs <- pubs %>%
+  mutate_if(is.factor, as.character ) %>%
+  mutate(pubDate = lubridate::dmy(substring(pubDate, 6, 17)), year = lubridate::year(pubDate))
+
+```
+
+```{r}
+pubs %>%
+  group_by(year) %>%
+  filter(year > 1989) %>%
+  count() %>%
+  ggplot(aes(year, n)) +
+  geom_line() +
+  labs(title = "Returns from Trip database based on search term:", 
+       subtitle = search_term)
+```
+
+
+## Mentions of data science in titles
+
+```{r}
+
+pubs %>%
+  filter(stringr::str_detect(title, "[Dd]ata science"))
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(tidytext)
+library(wordcloud)
+
+textPubs <- pubs %>%
+  group_by(title) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE)
+
+with(textPubs, wordcloud(word, n, max.words = "INF", scale = c(8, 0.2), 
+                      rot.per = 0.4, random.order = FALSE, 
+                      colors = brewer.pal(8, "Dark2")))
+  
+
+```
+
+```{r}
+library(topicmodels)
+
+corp_dtm <- pubs %>%
+  group_by(id, title) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(id, word, sort = TRUE) 
+
+corp_dtm <- corp_dtm %>%
+  cast_dtm(id, word, n)
+corp_dtm
+
+corp_lda <- LDA(corp_dtm, k = 8, control = list(seed = 1234))
+corp_lda
+```
+
+```{r fig.height=6}
+corp_tidy_lda <- tidy(corp_lda)
+
+corp_tidy_lda %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta) %>%
+  ggplot(aes(term, beta, fill = factor(topic), label = term)) +
+  geom_bar(stat = "identity") +
+  geom_text(hjust = -0.2, size = 3) +
+  coord_flip() +
+  facet_wrap(~topic, ncol =4) +
+   theme_bw()+
+  labs(fill = "Topic", y = "") +
+  expand_limits(y = c(0, .1)) + 
+  theme(legend.position = "", axis.text.y = element_blank(), axis.ticks = element_blank())
+ 
+  
+
+```
+
+## LDA vis
+
+Based on [this example](http://text2vec.org/topic_modeling.html)
+
+```{r}
+library(LDAvis)
+
+library(text2vec)
+
+
+
+tokens <- pubs$title %>% 
+  tolower %>% 
+  word_tokenizer
+# turn off progressbar because it won't look nice in rmd
+it <- itoken(tokens, ids = pubs$id, progressbar = FALSE)
+v <- create_vocabulary(it) %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
+
+v %>%
+  
+vectorizer = vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "lda_c")
+
+lda_model <- 
+  LDA$new(n_topics = 8, vocabulary = v, 
+          doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr <-
+  lda_model$fit_transform(dtm, n_iter = 1000, convergence_tol = 0.01, 
+                          check_convergence_every_n = 10)
+```
+
+```{r}
+lda_model$plot()
+```
+
