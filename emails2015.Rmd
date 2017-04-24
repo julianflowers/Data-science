@@ -1,0 +1,217 @@
+---
+title: "Rapid analysis of email feedback for Fingertips via profilefeedback mailbox"
+output:
+  html_notebook:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  html_document:
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    toc: yes
+  word_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = FALSE, message = FALSE)
+
+```
+
+
+
+```{r}
+
+library(readr)
+library(dplyr)
+library(lubridate)
+
+```
+
+#Introduction
+
+Fingertips feedback is received via a number of channels including email to the [profilefeedback mailbox]("mailto:profilefeedback@phe.gov.uk).
+
+Since 2014 there have been ~ 3700 emails to and from the mailbox. The mailbox is administered by the Fingertips team.
+
+This short report presents a brief analysis of the emails received by the feedback. A more detailed report is available on request.
+
+# Method
+
+A database of emails for analysis was created as follows
+
+
+* Select fields in Outlook pane
+* For this analysis just using from, to , date and subject fields
+* *For full email addresses and formatted body text need to *export* relevant fields*
+* Copy and paste to Notepad
+* Import into R as tab-separated file
+
+```{r}
+## Import
+emails <- read_tsv("ftips_email.txt")
+
+emails <- emails %>%
+    mutate(date = lubridate::dmy(Received))
+```
+
+# Results
+
+## How many emails
+There were `r dim(emails)[1]` received overall between `r min(emails$date, na.rm = TRUE)` and `r max(emails$date, na.rm = TRUE)`.
+
+## Quick look
+```{r}
+emails %>%
+    sample_n(10) %>%
+    knitr::kable()
+```
+
+
+## Count daily emails
+
+The daily traffic through the mail box has increased over time.
+
+
+```{r}
+emails %>%
+    group_by(date) %>%
+    count() %>%
+    arrange(date)
+
+### and plot daily traffic
+
+library(ggplot2)
+
+emails %>%
+    group_by(date) %>%
+    count() %>%
+    arrange(date)%>%
+    ggplot(aes(date, n)) +
+    geom_line() +
+    geom_point() +
+    geom_smooth(method = "gam") +
+    labs(y = "Email count", 
+         title = "Daily email traffic to profilefeedback mailbox")
+
+```
+
+## Predicted traffic
+
+```{r, message=FALSE, warning=FALSE}
+
+library(prophet)
+
+email_proj <- emails %>%
+    group_by(date) %>%
+    count() %>%
+    arrange(date) %>%
+    rename(ds= date, y = n) %>%
+    na.omit()
+
+m <- prophet(email_proj)
+
+future <- make_future_dataframe(m, periods = 365)
+head(future)
+
+
+summary(m)
+m$growth
+
+forecast <- predict(m, future)
+m$changepoints
+
+prophet_plot_components(m ,forecast)
+
+
+```
+
+
+
+```{r day}
+
+library(lubridate)
+library(ggmosaic)
+
+
+emails <- emails %>%
+    mutate(year = year(date), 
+           month = month(date, label = TRUE),
+           day = wday(date, label = TRUE)) 
+
+# emails %>%
+#     filter(!is.na(year)) %>%
+#     group_by(year, day) %>%
+#     count() %>%
+#     ggplot(aes(year)) +
+#     geom_bar(aes(fill = day, stat = n)) 
+
+```
+
+```{r}
+emails2015 <- emails %>%
+    filter(date >= "2015-01-01" )
+```
+
+
+## What topics?
+
+We can plot a word cloud to show the relative frequency of feedback for different profiles.
+
+```{r, fig.height=6, fig.width=6}
+library(stringr)
+library(tidytext)
+
+
+library(wordcloud)
+
+words_body <- emails2015 %>%
+    select(Subject) %>%
+    unnest_tokens(word, Subject) %>%
+    anti_join(stop_words)%>%
+    count(word, sort = TRUE) %>%
+    filter(!word %in% c("profile", "profiles", "fw", "feedback"))
+
+
+
+
+with(words_body, wordcloud(word, n, min.freq = 5, max.words ='INF', 
+                           scale = c(8, 0.1),rot.per = 0.5, random.order = FALSE, colors = brewer.pal(8, "Dark2")))
+```
+
+
+## API mentions
+
+We launched the Fingertips automated programming interface (API) in November 2016, which is beginning to receive attention and feedback.
+
+
+```{r}
+emails %>%
+    filter(str_detect(Subject, "[Aa][Pp][Ii]")) %>%
+    group_by(year, month) %>%
+    count()
+```
+```{r}
+users <- emails2015 %>% select(From) %>% distinct %>% nrow %>% list
+
+
+```
+
+
+### Who sends?
+
+In total `r users` people have used the mail box. The users with more than one email are:
+
+```{r}
+
+emails %>%
+    group_by(From, year) %>%
+    count() %>% 
+    arrange(-n) %>%
+    filter(n>1)%>%
+    tidyr::spread(year, n, fill = 0) %>%
+    knitr::kable()
+```
+
