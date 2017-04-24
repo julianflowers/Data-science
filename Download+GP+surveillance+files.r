@@ -7,6 +7,8 @@ library(readxl)
 if(!require("downloader"))install.packages("downloader")
    library(downloader)
 
+
+## Test script
 ## create directory
 
 setwd("~")
@@ -17,23 +19,27 @@ setwd("test_downloads")
     
 getwd()    
 
+
+### Download single file
 url <- 'https://www.gov.uk/government/uploads/system/uploads/attachment_data/file/599925/PHE_GP_In_Hours_Weekly_Data_2017_Week_10.xls'
 
 download(url, "test8.xls", mode = "wb")
 
 list.files()
 
-
+## Open 
 testxl <- read_excel("test8.xls", sheet = 3, skip = 4)
 
 head(testxl)
 
+
+## Identify site address
+
 siteAddress <- "https://www.gov.uk/government/publications/gp-in-hours-bulletin"
 
+
+## Idenitfy .xls files on site
 page <- read_html(siteAddress)
-
-
-
 
 xls <- page %>%
   html_nodes("a") %>%       # find all links
@@ -43,17 +49,17 @@ xls <- page %>%
 xls1 <- unique(xls[stringr::str_detect(xls, "xls$") ]) ## identify files with .xls extensions
 
 
-#### Step 4 Extract filenames
+#### Extract filenames
 
 xls_split <- str_split(xls1, pattern = "/")
 
 filenames <- lapply(xls_split, "[[", 9)
 
 
-
+## Attach filenames to urls
 urls <- lapply(xls1, function(x) paste0("https://www.gov.uk", x))
     
-
+## Loop through all files and download
 for(i in 1:10){
     download(urls[[i]], filenames[[i]], mode = "wb")
 }
@@ -64,7 +70,7 @@ list.files()
 ## get core info from the first sheet
 files <- list.files()
 
-
+## Create empty data frame, loop through all xls files end extract info on start and end weeks, population size etc
 df <- data.frame()
 
 for(f in files){
@@ -80,7 +86,7 @@ df %>% head
 
 files[[1]]
 
-
+## and repeat for data files
 library(magrittr)
 df1 <- data.frame()
 
@@ -101,20 +107,27 @@ for(f in files){
 df1 <- bind_rows(df1, test2)
     
 }
+           
+## Attach data and metadata           
 
 df2 <- df1 %>% tidyr::gather(indicator, value, 1:18) %>% mutate(value = as.numeric(value))
            
 df2 <- df2 %>% left_join(df)
+           
+### Full production version
+           
+## Create directory to receive downloads           
 
 setwd("~")
 
 if(!dir.exists("gp_data")) dir.create("gp_data")
 
-setwd("gp_data")
+setwd("gp_data") ## check
     
-getwd()    
+getwd()    ## check
 
-
+           
+## Set up root URLs
 siteAddress_14 <- "https://www.gov.uk/government/publications/gp-in-hours-weekly-bulletins-for-2014"
 siteAddress_15 <- "https://www.gov.uk/government/publications/gp-in-hours-weekly-bulletins-for-2015"
 siteAddress_16 <- "https://www.gov.uk/government/publications/gp-in-hours-weekly-bulletins-for-2016"
@@ -150,14 +163,7 @@ xls_17 <- pages17 %>%
 xls14 <- unique(xls_14[stringr::str_detect(xls_14, "xls$") ])
 xls15 <- unique(xls_15[stringr::str_detect(xls_15, "xls$") ])  ## identify all xls files
 xls16 <- unique(xls_16[stringr::str_detect(xls_16, "xls$") ])
-xls17 <- unique(xls_17[stringr::str_detect(xls_17, "xls$") ])    
-
-xls17
-
-             
- 
-    
-    
+xls17 <- unique(xls_17[stringr::str_detect(xls_17, "xls$") ])     
 
 xls_all <- c(xls14, xls15, xls16, xls17) ## concatenate
 
@@ -166,7 +172,9 @@ xls_split <- str_split(xls_all, pattern = "/") ## split up URLs
 filenames <- lapply(xls_split, "[[", 9) ## create filenames
 
 urls_all <- lapply(xls_all, function(x) paste0("https://www.gov.uk", x)) ## create urls
-    
+
+## Download spreadsheets  (n ~ 200)                 
+                   
 for(i in seq_along(urls_all)){
     download(urls_all[[i]], filenames[[i]], mode = "wb")
 }
@@ -178,13 +186,14 @@ files
 
 f <- list.files()
 
-testx <- read_excel(f[[80]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.numeric(X__1), file = paste(f[[1]]))
-testx
+##testx <- read_excel(f[[80]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.numeric(X__1), file = paste(f[[1]]))
+##testx
 
-  sheet <- read_excel(files[[12]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.numeric(X__1),file = paste(files[[12]]))
-sheet
+## sheet <- read_excel(files[[12]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.numeric(X__1),file = paste(files[[12]]))
+##sheet
 
 
+## Extraxt rows 4-8 from sheet 1 in each file
 df_all <- data.frame()
 
 for(i in seq_along(files)){
@@ -195,11 +204,15 @@ sheet <- read_excel(files[[i]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.nu
 df_all <- bind_rows(df_all, sheet)
     
     }
-
+                   
+                   
+## Clean up data and save as a .csv 
 df_all %>% janitor::clean_names() %>% mutate(x_1 = ifelse(!is.na(x), x, x_1)) %>% select(-x)
 
 df_all %>% readr::write_csv("surv_metadata.csv")
 
+                   
+## Extract data from sheet 3
 library(magrittr)
 df1_all <- data.frame()
 
@@ -220,8 +233,9 @@ for(i in seq_along(files)){
 df1_all <- bind_rows(df1_all, test2)
     
 }
-
+## Check size
 df1_all %>% dim()
-
+           
+## Save data
 readr::write_csv(df1_all, "surv_data.csv")
 
