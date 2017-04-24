@@ -1,0 +1,298 @@
+---
+title: "Peer benchmark tool UTLA data"
+author: "Julian Flowers"
+date: "29 July 2016"
+output:
+  html_notebook: 
+    number_sections: yes
+    toc: yes
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Analysis of the PHE peer benchmark tool - profiling the profile
+
+The Peer Benchmarking Tool contains a selection of indicators that reflect PHE’s national priorities. They provide a summary of determinants, risk factors and outcomes using indicators available in other Fingertips tools - particularly the Public Health Outcomes Framework. They are broken down into the following categories:
+
+* Giving children and young people the best start in life (CYP)
+* Mental health and wellbeing (MH&WB)
+* Drugs and alcohol (D&A)
+* Sexual health (SH)
+* Obesity
+* Smoking
+* Dementia
+* Health inequalities (HI)
+* Health checks (HC)
+* PHE's core offer to the NHS (CO)
+
+The excel file can be downloaded from [Fingertips](http://fingertips.phe.org.uk/hub-tool), and the indicator list [here](http://fingertips.phe.org.uk/profile/hub-tool/data#gid/1938132836/ati/102).
+
+
+```{r Load libraries, message=FALSE, warning=FALSE, include=FALSE}
+
+suppressPackageStartupMessages(c(
+library(viridis),
+library(ggplot2),
+library(knitr),
+library(readxl),
+library(corrplot),
+library(tidyr),
+library(dplyr),
+##library(networkD3)
+library(data.table),
+library(DT),
+library(cluster),
+library(NbClust),
+library(openxlsx)
+))
+```
+
+##Read in data
+
+Reading in data can done via the `readxl` package. UA data are in sheet 3. 
+
+```{r Import data and change headers to lower case, message=FALSE, warning=FALSE, cache=TRUE}
+setwd("~/Documents/R_projects/profiles")
+
+profile <-read_excel("peerdata.xlsx", 3)
+
+profile <- as.data.table(profile) ## convert to data.table
+
+colnames(profile) <- tolower(make.names(colnames(profile))) ## tidy up column names
+```
+
+##Review data 
+
+We will extract key variables and create an interactive data table to help explore the data and enable the data to easilty downloaded.
+
+```{r Datatable, message=FALSE, warning=FALSE}
+profileDT <- profile[, .(indicator, time.period, area.name, sex, value = round(value,2))] ## extract relevant columns and round data
+
+u <- unique(profileDT$indicator) ## view indicator names
+
+## Reclassify some variables into existing groups
+
+u[106:117] <- paste("Smoking", unique(profileDT$indicator)[106:117], sep = ": ")
+
+u[118:131] <- paste("Alcohol", unique(profileDT$indicator)[118:131], sep = ": ")
+
+u[87:98] <- paste("Other", unique(profileDT$indicator)[87:98], sep = ": ")
+
+l <- levels(factor(profileDT$indicator))
+
+recoder::recoder(l,u)
+
+hubprof <- tidyr::separate(profileDT, indicator, c("category", "indicator"), sep = ":") ## split indicator name from category
+
+hubprof ## top 1000 rows
+
+unique(hubprof$category)
+
+
+
+
+
+# datatable(profileDT, class = "compact", caption = "Hub dataset",extensions = 'Buttons', options = list(
+#     dom = 'Bfrtip',
+#     buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) ## create datatable to explore the data values
+```
+
+##Extract latest data only and shorten indicator names
+
+First create a unique indicator index by combining indicator names, time periods and gender breakdown
+
+```{r Extract latest data, message=FALSE, warning=FALSE}
+profile <- profile %>% mutate(indshort = substring(indicator, 1, 35),indextime = paste(indicator, age, sex,  time.period, sep = "-"), indgend = paste(indshort, sex, sep = '-')) %>%
+                             arrange (desc(time.period))
+profile <- as.data.table(profile)
+proflatest <- profile[, .SD[1], by = indgend]
+
+profile1 <- profile[indextime %in% proflatest$indextime,.(indextime, indicator, indshort, indgend, time.period, area.name, value, lower.ci, upper.ci, count, denominator)]
+
+dim(profile1)
+
+```
+
+
+## Exploration
+
+```{r Explore, fig.height=13, fig.width=7, message=FALSE, warning=FALSE}
+
+
+length(unique(profile1$indshort)) ## 111 indicators
+
+length(unique(profile1$indextime)) ## the dataset contains 160 indicator - gender combinations
+
+
+count(profile1, time.period) %>% arrange(desc(n)) ## there are 14 different 'latest' time periods
+
+count(profile1, indgend, time.period) %>% arrange(desc(n)) 
+
+profile1 <- profile1[!area.name %in% c("City of London", "Isles of Scilly"),]
+
+count(profile1, indgend, time.period) %>% arrange(desc(n))
+
+## boxplots
+
+qplot(data = profile1, indgend, log(value), geom = "boxplot", fill = time.period) + coord_flip() + theme(axis.text.y = element_text(size = 6)) + xlab("") + theme(legend.position = "bottom")
+
+```
+
+
+# Missing data
+
+Data in these profiles can be missing because of:
+
+* Poor data quality
+* Data not collected
+* Suppression due to small numbers
+
+It tends not to be missing at random (MAR). 
+
+Some modelling approaches such as k-means analysis don't work well with missing data so decisions need to be made about tackling it.
+
+```{r Missing data}
+
+## 
+
+## How much is missing?
+mean(is.na(profile1)) ## ans ~ 4%
+
+## Where is it missing?
+## By indicator
+na <- profile1 %>% group_by(indgend) %>% summarise(na = 100 * mean(is.na(value))) %>% filter(na >20) %>% arrange(desc(na))
+
+kable(na) ## 5 indicators have > 20% data missing - they will be excluded from further analysis. 35 have missing data  <20% - will impute missing values
+
+## By area
+
+na1 <- profile1 %>% group_by(area.name) %>% summarise(na.a = 100 *
+mean(is.na(value))) %>% filter(na.a >0) %>% arrange(desc(na.a))
+ ## all areas have at least some missing data. It is almost 20% in Rutland.
+
+## There are lots of approaches to imputing missing data. For simplicity will replace missing data with the mean values for each indicator
+
+## Exclude indicators with >20% missing data
+
+highmiss <- c("Dementia: Estimated diagnosis rate -Persons",
+              "MH&WB: Suicide rate-Female", 
+              "CO: Tuberculosis: Treatment complet-Persons",
+              "MH&WB: Self-reported well-being - p-Persons",
+              "CO: Preventable sight loss - diabet-Persons")
+profile1 <- profile1[!indgend %in% highmiss, ] 
+
+## Impute
+
+
+profile1.imp <- profile1 %>% group_by(indgend) %>% mutate(newval = ifelse(is.na(value), mean(value, na.rm = TRUE), value))
+
+mean(is.na(profile1.imp$newval)) ## check it is 0
+
+## Calculate mean values for each indicator
+
+meanprof <- profile1 %>% group_by(indgend) %>% summarise(meanval = mean(value, na.rm = TRUE))
+
+meanprof1 <- profile1.imp %>% group_by(indgend) %>% summarise(meanval1 = mean(newval, na.rm = TRUE))
+
+qplot(meanprof$meanval, meanprof1$meanval1) + geom_smooth(method = "lm")
+
+## shows that mean values with and without missing data are virtually identical
+
+```
+
+
+# Correlations
+
+```{r Correlation, fig.height=12, fig.width=12, message=FALSE, warning=FALSE}
+
+## Select fields
+
+profw <- profile1.imp %>% select(indgend, area.name, value)
+
+## Reshape dataset
+
+require(tidyr)
+
+profw <- profw %>% spread(indgend, value)
+dim(profw)
+mean(is.na(profw))
+
+## remove nas
+profw1 <- na.omit(profw)
+require(corrplot)
+cor<- cor(profw1[, -1])
+corrplot(cor, tl.cex = .5, addgrid.col = NA, method = "square", tl.col= 'black', order = "hclust", addrect = 10, title = "Correlations between all indicators in the Peer benchmarking tool")
+
+## ggcorrplot version
+
+require(ggcorrplot)
+
+
+ggcorrplot(cor,  method = "square", colors = c("red", "white", "blue"), hc.order = TRUE, outline.color = "white", type = "upper", hc.method = "complete", tl.cex = 5, tl.col = "darkgrey") + ggtitle("Correlations between all indicators in the \nPeer benchmarking tool")
+
+```
+
+There is a large group of indicators which are highly correlated
+
+```{r D3 heatmap, fig.height=9, fig.width=7, message=FALSE, warning=FALSE}
+library(d3heatmap)
+profw <- data.frame(profw)
+
+
+rownames(profw) <- profw$area.name
+d3heatmap(profw[, -1], xaxis_font_size = "5pt", yaxis_font_size = "5pt", k_row = 7, k_col = 8)
+
+```
+
+## k means
+
+Looks like  ~7 clusters would work...NB Lewisham
+Need to scale the dataset
+
+```{r, fig.height=10, fig.width=10}
+## Need to remove missing data
+
+profw.k <- apply(profw[, -1], 2, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+
+profw.k <- as.data.frame(unlist(profw.k))
+rownames(profw.k) <- profw$area.name
+
+str(profw.k)
+
+k <- kmeans(scale(profw.k), 7, nstart = 25)
+
+k$size
+
+k$centers
+
+k$cluster
+
+profw.k$cluster <- k$cluster
+
+c <- data.frame(cbind(scale(profw.k), k$cluster))
+rownames(c) <- profw$area.name
+
+
+## Cluster lookup table
+
+c1 <- data.frame(profw$area.name, c[, 157])
+names(c1) <- c("Local Authority","Cluster")
+require(DT)
+datatable(c1, options = list(pageLength = 25))
+
+## reshape
+p <- gather(c[, -156], ind, value, 1:155)
+dim(p)
+str(p)
+
+## plot indicators...
+
+kplot1 <- ggplot(p, aes(substring(ind,1, 12), value, colour = factor(V157))) + geom_line(aes(group = factor(V157)))
+kplot1 + facet_wrap(~V157) + coord_polar() + geom_hline(yintercept = 0) + ggtitle("Cluster profiles")
+
+```
+
