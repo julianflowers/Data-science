@@ -26,7 +26,7 @@ library(govstyle)
 
 search_term <- "population+health+data+science"
 
-url <- paste0("https://www.tripdatabase.com/search/xml?key=PHE31413&criteria=", search_term, "&max=5000")
+url <- paste0("https://www.tripdatabase.com/search/xml?key=key&criteria=", search_term, "&max=5000")
 
 search <- read_xml(url)
 
@@ -128,7 +128,7 @@ pubs %>%
 
 ```
 
-
+## Wordcloud
 ```{r message=FALSE, warning=FALSE}
 library(tidytext)
 library(wordcloud)
@@ -145,6 +145,8 @@ with(textPubs, wordcloud(word, n, max.words = "INF", scale = c(8, 0.2),
   
 
 ```
+
+## Topic models and LDAVis
 
 ```{r}
 library(topicmodels)
@@ -204,9 +206,8 @@ it <- itoken(tokens, ids = pubs$id, progressbar = FALSE)
 v <- create_vocabulary(it) %>% 
   prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2)
 
-v %>%
   
-vectorizer = vocab_vectorizer(v)
+vectorizer <- vocab_vectorizer(v)
 dtm = create_dtm(it, vectorizer, type = "lda_c")
 
 lda_model <- 
