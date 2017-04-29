@@ -73,7 +73,7 @@ autoplot(cp) + labs(y = "rate", x = "date") ## plot
 ```{r}
 
 
-## Use Indicator 92165 - Total number of prescribed antibiotic items per 1000 resident individuals by quarter
+## Use Indicator 92511 - Monthly prescribing data
 
 ind_ab <- fingertips_data(IndicatorID = 92511, AreaTypeID = 19 ) %>%
   filter(AreaName == "England") %>%
@@ -83,16 +83,22 @@ ind_ab <- fingertips_data(IndicatorID = 92511, AreaTypeID = 19 ) %>%
 
 rownames(ind_ab) <- ind_ab$Timeperiod
 
+## Create time series starting with Jan 2011 by month
+
+ind_ab_ts <- ts(ind_ab$Value, start = c(2011, 1), frequency = 12, names = ind_ab$Timeperiod)
 
 qplot(data=ind_ab, x = date, Value, geom = c("line", "point"),  group = 1) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-cp_pres <- cpt.mean(ind_ab[, 2], Q = 3)
+cp_pres <- cpt.mean(ind_ab_ts)
+plot(cp_pres)
 
 cp_1 <- cp_pres@cpts ## dates of change points
 
 ind_ab[cp_1,] ## filter dataset to identify cp locations
 
 autoplot(cp_pres) + labs(y = "rate", x = "date") + geom_line(aes(y = ind_ab$Value)) ## plot
+
+class(ind_ab_ts)
 
 ```
 
