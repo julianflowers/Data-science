@@ -126,7 +126,7 @@ plot(bcp1)
 ```{r}
 library(RGA)
 
-ga_token <- authorize(client.id = "934830359575-tbflfk33ce99kgatrte3ecpt4gj5kdhf.apps.googleusercontent.com", client.secret = "l5BP84XI1I5d0qrC3f21s9Gp", cache = TRUE)
+ga_token <- authorize(client.id = "xxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com", client.secret = "xxxxxxxxxxxxxxxx", cache = TRUE)
 
 ## extract profile ids, website urls and site names
 
