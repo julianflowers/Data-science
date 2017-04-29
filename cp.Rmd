@@ -118,6 +118,76 @@ plot(bcp1)
 
 ```
 
+## Daily data: Fingertips hits
+
+```{r}
+library(RGA)
+
+ga_token <- authorize(client.id = "934830359575-tbflfk33ce99kgatrte3ecpt4gj5kdhf.apps.googleusercontent.com", client.secret = "l5BP84XI1I5d0qrC3f21s9Gp", cache = TRUE)
+
+## extract profile ids, website urls and site names
+
+  lookup <- list_profiles() %>%
+    select(name,  id, websiteUrl)
+  
+## select Fingertips id
+  
+  lookup %>%
+    filter(stringr::str_detect(name, "Finger")) %>%
+    select(id)
+  
+  ## download page view data
+  
+   df <- data.frame()
+
+for(i in 1:length(id)) {
+  id<-"78054916"
+  first <- firstdate(id)
+  ga <- get_ga(id, start.date = first, end.date = "today",
+            metrics = "ga:users,
+            ga:sessions,
+            ga:avgTimeonPage,
+            ga:pageviews",
+            dimension = "ga:date" )
+  ga <- cbind(id, ga)
+  df <- rbind(df, ga)
+}
+
+
+## Lets just plot
+
+qplot(data = df, date, pageviews, geom = c("line", "smooth")) + 
+  labs(title = "Fingertips daily page views")
+   
+```
+
+## Changepoint analysis
+
+```{r}
+df_ts <- ts(df$users, name = df$date, start = c(2013, 330), frequency = 365.25)
+
+cp_df_mean <- cpt.mean(df_ts, method = "BinSeg", Q = 10)
+cp_df_var <- cpt.var(df_ts, method = "PELT", Q = 5)
+
+autoplot(cp_df_mean)
+ 
+cpdf <- cp_df_mean@cpts
+
+df[cpdf, ] %>%
+  ggplot(aes(date, pageviews)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Changepoints for Fingertips")
+
+```
+
+The analysis shows that:
+
+* Page views significantly increased every year from 
+  + an average 450 a day from Oct 2014 to March 2016
+  + 2600 on average since May 2016
+
+
 
 ## References
 
