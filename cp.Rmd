@@ -65,8 +65,6 @@ test1[cps,] ## filter dataset to identify cp locations
 autoplot(cp) + labs(y = "rate", x = "date") ## plot
 
 
-bcp2 <- bcp(test1$Value)
-plot(bcp2)
 
 ```
 
