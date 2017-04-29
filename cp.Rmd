@@ -1,14 +1,17 @@
 ---
 title: "Changepoint analysis"
 output:
-  html_document: default
+  html_document: 
+    toc: yes
   html_notebook: default
 bibliography: changepoint.bib  
   
 ---
 ```{r, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE)
 ```
+
+## What is changepoint analysis
 
 Changepoint analysis is...
 
@@ -161,7 +164,7 @@ qplot(data = df, date, pageviews, geom = c("line", "smooth")) +
    
 ```
 
-## Changepoint analysis
+#### Changepoint analysis
 
 ```{r}
 df_ts <- ts(df$users, name = df$date, start = c(2013, 330), frequency = 365.25)
