@@ -3,6 +3,8 @@ title: "Changepoint analysis"
 output:
   html_document: default
   html_notebook: default
+bibliography: changepoint.bib  
+  
 ---
 ```{r, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
@@ -12,7 +14,7 @@ Changepoint analysis is...
 
 More details here...<https://en.wikipedia.org/wiki/Change_detection>, <http://www.variation.com/cpa/tech/changepoint.html>
 
-In R with `changepoint` package
+In R with `changepoint` package[@Killick2013]
 
 ```{r, message=FALSE, warning=FALSE}
 if(!require("changepoint"))install.packages("changepoint")
@@ -117,10 +119,5 @@ plot(bcp1)
 ```
 
 
-
-
-```{r}
-print(citation("changepoint"), bibtex = TRUE); 
-citation("bcp")
-```
+## References
 
