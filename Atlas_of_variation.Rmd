@@ -1,0 +1,467 @@
+---
+title: "Diagnostic atlas of variation"
+output:
+  html_notebook: default
+  html_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+# Introduction
+
+Manipulating excel data in R can be difficult because often excel spreadsheets combine data storage, presentation and analysis in the same sheets and can be heavly formattted (merged columns, multiple column headers, multiple tables per sheet). The Atlas of Variation is an exampleof 'messy data'.
+ 
+* Messy data - multiple sheets, variable formatting, variable field names
+
+
+The objective is to extract CCG and other data to:
+    + Put in PHOLIO format
+    + New anlaysis
+
+To do this we need to manipulate the data into tidy format.
+
+Now new `R` tools for manipulating excel sheets - see <https://www.r-bloggers.com/how-to-use-jailbreakr/> which we will use to reorganise the spreadsheets and prepare the data for analysis.
+
+## Data wrangling
+
+Start by loading libraries.
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE)
+options(scipen = 10, digits = 3)
+
+library(readxl)
+library(tidyverse)
+if(!require(c("hadley/xml2","rsheets/linen",
+                           "rsheets/cellranger",
+                           "rsheets/rexcel",
+                           "rsheets/jailbreakr")))devtools::install_github(c("hadley/xml2",
+                           "rsheets/linen",
+                           "rsheets/cellranger",
+                           "rsheets/rexcel",
+                           "rsheets/jailbreakr"))
+library(rexcel)
+library(jailbreakr)
+
+
+```
+
+and download the data from the [Fingertips website](https://fingertips.phe.org.uk/profile/atlas-of-variation).
+
+```{r download}
+url <- "https://fingertips.phe.org.uk/documents/DiagAtlasData_291116.xlsx"
+destfile <- "aov_diag.xlsx"
+aov_diag <- download.file(url, destfile)
+
+```
+
+Next we can look to see how many sheets are in the dataset - we'll use `rexcel_read_workbook` to read in the whole workbook - this takes a little while. W can see there are 38 sheets in the workbook. We have saved this to and `R` object we have called `workbook`.
+
+```{r view sheets, message=FALSE, warning=FALSE}
+
+workbook <- rexcel_read_workbook("aov_diag.xlsx", progress = FALSE)
+
+sheet_names <- names(workbook$sheets) ## these are the sheet names
+
+```
+
+Let's look at sheet 1 to see what the structure is. The `jailbreakr` package has a `split_sheet` function, which extracts tables from the sheet.
+
+```{r split sheet 1}
+tables <- split_sheet(workbook$sheets$`1`)
+
+glimpse(tables)
+
+
+```
+
+This identifies 4 subtables (look at `dim`) - one with 2 rows and 2 columns and three with 1050 rows and 15 columns. To extract the data values we need to do a bit more work. We can see the first table contains the title, and subsequent tables appear to have the same data structure but relate to different time periods. In the original spreadsheet these are separated by blank rows.
+
+```{r extract values}
+
+data_list <- map(tables, function(x) x$values())
+
+## extract column names from 2nd table
+
+col_names <- (data_list[[2]][1,]) %>% unlist
+
+## join datasets together as a new table
+map1 <- map_df(data_list[2:4], as.tibble)
+
+## attach column names
+colnames(map1) <- col_names
+
+
+map1 <- map1 %>%
+  slice(2:3151) %>% ## exclude header row
+  unnest()
+
+## get sheet title
+
+title <- unlist(data_list[[1]][2,2])
+
+
+title %>% unlist
+
+## Attach to sheet
+
+map1 <- map1 %>% 
+  mutate(map = title) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate:map)
+
+```
+
+#### Simple analysis
+Now we have a data frame for the first map which we can further analyse...
+
+For example plotting data over time. We have quarterly and full year data - lets just plot the quarterly data.
+
+This suggests that:
+
+1. The rate of CT scanning has increased quarter by quarter
+2. There was an extreme outlier earlier in the time series (Stafford and Surrounds CCG)
+3. Judged by IQR variation in CT scanning rates between CCGs has increased over time series
+
+
+```{r, fig.cap= "Boxplot of map1 over time"}
+library(govstyle)
+
+
+## which CCG has highest rate?
+map1 %>%
+  filter(stringr::str_detect(Period, "Q" )) %>%   ## identifies quarterly data
+  group_by(Period) %>%
+  top_n(wt = Rate, 1)
+
+
+map1 %>%
+  filter(stringr::str_detect(Period, "Q" )) %>%   ## identifies quarterly data
+  ggplot(aes(Period, Rate)) +
+  geom_boxplot(fill = "#006435") +
+  theme_gov() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title =stringr::str_wrap(paste0(title1), 50))
+
+
+
+```
+
+
+## Scaling up
+
+Now we have a method for extracting the data we can (try) to extract each table and combine the CCG data so we can look at the interrelationships between diagnostic tests. [I am doing this sheet by sheet but could be done programmatically altough there are several differnt patterns].
+
+```{r cache=TRUE}
+
+## Map 1
+  tables <- split_sheet(workbook$sheets$`1`)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map1 <- map_df(data_set[2:4], as.tibble)
+  colnames(map1) <- col_names
+map1 <- map1 %>%
+    slice(2:3151) %>% ## exclude header row
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map1 <- map1 %>% 
+  mutate(map = title1) %>%
+  select(Period, `CCG code`, `CCG name`, Rate:map)
+
+## Map 2 
+  tables <- split_sheet(workbook$sheets$`2`)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map2 <- map_df(data_set[2:4], as.tibble)
+  colnames(map2) <- col_names
+map2 <- map2 %>%
+    slice(2:3151) %>% ## exclude header row
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map2 <- map2 %>% 
+  mutate(map = title1) %>%
+  select(Period, `CCG code`, `CCG name`, Rate:map)
+
+## Map 3
+tables <- split_sheet(workbook$sheets$`3`)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map3 <- map_df(data_set[2:4], as.tibble)
+  colnames(map3) <- col_names
+map3 <- map3 %>%
+    slice(2:3151) %>% ## exclude header row
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map3 <- map3 %>% 
+  mutate(map = title1) %>%
+  select(Period, `CCG code`, `CCG name`, Rate:map)
+
+## Map 16 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`16`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[1]][3,]) %>% unlist
+  map16 <- map_df(data_set[1], as.data.frame)
+  colnames(map16) <- col_names
+map16 <- map16 %>%
+    slice(5:2103) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map16 <- map16 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, `Observed procedures`:map)
+
+## Map 17 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`17`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map17 <- map_df(data_set[2], as.data.frame)
+  colnames(map17) <- col_names
+map17 <- map17 %>%
+    slice(2:421) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map17 <- map17 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate:map)
+
+
+## Map 19 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`19`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[1]][3,]) %>% unlist
+  map19 <- map_df(data_set[1], as.data.frame)
+  colnames(map19) <- col_names
+map19 <- map19 %>%
+    slice(4:2093) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map19 <- map19 %>% 
+  mutate(map = title1, Year = as.character(Year)) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = ISR, `95% lower`:map)
+
+## Map 20 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`20`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map20 <- map_df(data_set[2], as.data.frame)
+  colnames(map20) <- col_names
+map20 <- map20 %>%
+    slice(2:2101) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map20 <- map20 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
+
+## Map 22 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`22`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[1]][3,]) %>% unlist
+  map22 <- map_df(data_set[1], as.data.frame)
+  colnames(map22) <- col_names
+map22 <- map22 %>%
+    slice(4:2093) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map22 <- map22 %>% 
+  mutate(map = title1, Year = as.character(Year)) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = ISR, `95% lower`:map)
+
+
+## Map 23 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`23`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[1]][3,]) %>% unlist
+  map23 <- map_df(data_set[1], as.data.frame)
+  colnames(map23) <- col_names
+map23 <- map23 %>%
+    slice(4:1683) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map23 <- map23 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = DSR, `95% lower`:map)
+
+## Map 24 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`24`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map24 <- map_df(data_set[2:4], as.data.frame)
+  colnames(map24) <- col_names
+map24 <- map24 %>%
+    slice(2:3151) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map24 <- map24 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate:map)
+
+
+## Map 25 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`25`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map25 <- map_df(data_set[2:4], as.data.frame)
+  colnames(map25) <- col_names
+map25 <- map25 %>%
+    slice(2:3151) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map25 <- map25 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate:map)
+
+## Map 26 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`26`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map26 <- map_df(data_set[2], as.data.frame)
+  colnames(map26) <- col_names
+map26 <- map26 %>%
+    slice(2:631) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map26 <- map26 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
+
+## Map 27 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`27`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map27 <- map_df(data_set[2:4], as.data.frame)
+  colnames(map27) <- col_names
+map27 <- map27 %>%
+    slice(2:3151) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map27 <- map27 %>% 
+  mutate(map = title1) %>%
+  select(Period, `CCG code`, `CCG name`, Rate:map)
+
+## Map 28 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`28`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map28 <- map_df(data_set[2:4], as.data.frame)
+  colnames(map28) <- col_names
+map28 <- map28 %>%
+    slice(2:3151) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map28 <- map28 %>% 
+  mutate(map = title1) %>%
+  select(Period, `CCG code`, `CCG name`, Rate:map)
+
+
+## Map 29 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`29`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map29 <- map_df(data_set[2:4], as.data.frame)
+  colnames(map29) <- col_names
+map29 <- map29 %>%
+    slice(2:3151) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map29 <- map29 %>% 
+  mutate(map = title1) %>%
+  select(Period, `CCG code`, `CCG name`, Rate:map)
+
+## Map 30 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`30`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map30 <- map_df(data_set[2], as.data.frame)
+  colnames(map30) <- col_names
+map30 <- map30 %>%
+    slice(2:421) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map30 <- map30 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
+
+## Map 36 - this differs - only 2 subtables
+tables <- split_sheet(workbook$sheets$`36`)
+glimpse(tables)
+  data_set <- map(tables, function(x) x$values())
+  col_names <- (data_set[[2]][1,]) %>% unlist
+  map36 <- map_df(data_set[2], as.data.frame)
+  colnames(map36) <- col_names
+map36 <- map36 %>%
+    slice(2:421) %>%
+    unnest()
+  title1 <- unlist(data_set[[1]][2,2])
+  title1 %>% unlist
+map36 <- map36 %>% 
+  mutate(map = title1) %>%
+  select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
+
+## Put it all together - bit of surgery on map 16 first
+
+map16 <- map16 %>%
+  mutate(Period = as.character(Period)) %>%
+  select(Period:`CCG name`, Rate = ISR, `95% lower`:map)
+
+map_all <-bind_rows(map1, map2, map3, map16, map17, map19, map20, map22, map23, map24, map25, map26, map27, map28, map29, map30, map36)
+
+head(map_all)
+
+```
+
+After much effort we now have a data frame of the CCG data. There are several different sets of time periods. These will need to be recoded. We have quarterly, annual and three yearly data.
+
+```{r, cache=TRUE}
+map_all <- map_all %>%
+  mutate(Period = recode(Period, 
+                         "506" = "2005/06",
+                         "607" = "2006/07", 
+                         "708" = "2007/08", 
+                         "809" = "2008/09", 
+                         "910" = "2009/10", 
+                         "1011" = "2010/11",
+                         "1112" = "2011/12", 
+                         "1213" = "2012/13", 
+                         "1314" = "2013/14", 
+                         "1415" = "2014/15", 
+                         "2013/14_2013/14" = "2013/14", 
+                         "2014/15_2014/15" = "2014/15", 
+                         "2015/16_2015/16" = "2015/16"))
+
+summary(map_all)
+
+map_all %>%
+  DT::datatable()
+```
+
+
