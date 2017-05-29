@@ -196,7 +196,7 @@ f <- list.files()
 ## Extraxt rows 4-8 from sheet 1 in each file
 df_all <- data.frame()
 
-for(i in seq_along(files)){
+for(i in seq_along(files[1:144])){
 
 sheet <- read_excel(files[[i]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.numeric(X__1),file = paste(files[[i]]))
 
@@ -207,7 +207,12 @@ df_all <- bind_rows(df_all, sheet)
                    
                    
 ## Clean up data and save as a .csv 
-df_all %>% janitor::clean_names() %>% mutate(x_1 = ifelse(!is.na(x), x, x_1)) %>% select(-x)
+df_all <- df_all %>% janitor::clean_names() 
+
+
+df_all <- df_all %>% mutate(x_1 = ifelse(is.na(x_1), x_2, x_1)) %>% select(1:3)
+
+df_all %>% head()
 
 df_all %>% readr::write_csv("surv_metadata.csv")
 
