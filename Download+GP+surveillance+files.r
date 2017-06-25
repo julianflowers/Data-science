@@ -1,4 +1,4 @@
-
+## Load libraries
 library(rvest) ## web scraper
 library(stringr) ## string manipulation
 library(dplyr) ## data wrangling
@@ -8,8 +8,8 @@ if(!require("downloader"))install.packages("downloader")
    library(downloader)
 
 
-## Test script
-## create directory
+## This is a test script
+### Step1 : create directory
 
 setwd("~")
 
@@ -27,18 +27,19 @@ download(url, "test8.xls", mode = "wb")
 
 list.files()
 
-## Open 
+### Open 
 testxl <- read_excel("test8.xls", sheet = 3, skip = 4)
 
 head(testxl)
 
 
-## Identify site address
+### Identify site address 
 
 siteAddress <- "https://www.gov.uk/government/publications/gp-in-hours-bulletin"
 
 
-## Idenitfy .xls files on site
+### Idenitfy .xls files on site
+
 page <- read_html(siteAddress)
 
 xls <- page %>%
@@ -56,10 +57,10 @@ xls_split <- str_split(xls1, pattern = "/")
 filenames <- lapply(xls_split, "[[", 9)
 
 
-## Attach filenames to urls
+### Attach filenames to urls
 urls <- lapply(xls1, function(x) paste0("https://www.gov.uk", x))
     
-## Loop through all files and download
+### Loop through all files and download
 for(i in 1:10){
     download(urls[[i]], filenames[[i]], mode = "wb")
 }
@@ -67,10 +68,10 @@ for(i in 1:10){
              
 list.files()
 
-## get core info from the first sheet
+### get core info from the first sheet
 files <- list.files()
 
-## Create empty data frame, loop through all xls files end extract info on start and end weeks, population size etc
+### Create empty data frame, loop through all xls files end extract info on start and end weeks, population size etc
 df <- data.frame()
 
 for(f in files){
@@ -82,11 +83,11 @@ df <- bind_rows(df, testx)
 
 df %>% head
 
-## need to convert excel serial numbers to dates
+### need to convert excel serial numbers to dates
 
 files[[1]]
 
-## and repeat for data files
+### and repeat for data files
 library(magrittr)
 df1 <- data.frame()
 
@@ -108,14 +109,14 @@ df1 <- bind_rows(df1, test2)
     
 }
            
-## Attach data and metadata           
+### Attach data and metadata           
 
 df2 <- df1 %>% tidyr::gather(indicator, value, 1:18) %>% mutate(value = as.numeric(value))
            
 df2 <- df2 %>% left_join(df)
            
 ### Full production version
-           
+#==========================           
 ## Create directory to receive downloads           
 
 setwd("~")
@@ -126,6 +127,9 @@ setwd("gp_data") ## check
     
 getwd()    ## check
 
+#============================
+#  Web scraping
+#============================           
            
 ## Set up root URLs
 siteAddress_14 <- "https://www.gov.uk/government/publications/gp-in-hours-weekly-bulletins-for-2014"
@@ -191,7 +195,9 @@ f <- list.files()
 
 ## sheet <- read_excel(files[[12]], sheet = 1) %>%slice(4:8) %>% mutate(X__1 = as.numeric(X__1),file = paste(files[[12]]))
 ##sheet
-
+#======================
+#  Extract metadata
+#======================                   
 
 ## Extraxt rows 4-8 from sheet 1 in each file
 df_all <- data.frame()
@@ -213,9 +219,15 @@ df_all <- df_all %>% janitor::clean_names()
 df_all <- df_all %>% mutate(x_1 = ifelse(is.na(x_1), x_2, x_1)) %>% select(1:3)
 
 df_all %>% head()
-
+                   
+#=======================
+# Save metadata to file
+#=======================                   
 df_all %>% readr::write_csv("surv_metadata.csv")
 
+#==============================
+# Extract and save data to file
+#==============================                   
                    
 ## Extract data from sheet 3
 library(magrittr)
