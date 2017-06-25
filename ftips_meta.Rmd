@@ -76,9 +76,9 @@ tidymeta <- text %>%
 
 
 
-## Slide with R Output
+## Commonality cloud
 
-```{r cars, echo = TRUE}
+```{r , echo = TRUE}
 
 text %>%
   unnest_tokens(word, text) %>%
@@ -89,13 +89,7 @@ text %>%
                   value.var = "n", fill = 0) %>%
   commonality.cloud(max.words = 100)
 
-
-
 ```
 
-## Slide with Plot
 
-```{r pressure}
-plot(pressure)
-```
 
