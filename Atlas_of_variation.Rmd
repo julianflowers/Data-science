@@ -10,16 +10,16 @@ editor_options:
 
 # Introduction
 
-Manipulating excel data in R can be difficult because often excel users combine data storage, presentation and analysis in the same sheets, which can be heavly formattted (merged columns, multiple column headers, multiple tables per sheet). The Atlas of Variation is an example of this kind of messy 'messy data'.
+Manipulating excel data in R can be difficult because often excel users combine data storage, presentation and analysis in the same sheets, which can be heavly formattted (merged columns, multiple column headers, multiple tables per sheet). The Atlas of Variation is an example of this kind of 'messy data'.
 
 
 The objective is to extract CCG and other data to:
     + Put in PHOLIO format
-    + New anlaysis
+    + Perform new anlaysis
 
 To do this we need to manipulate the data into tidy format.
 
-Now new `R` tools for manipulating excel sheets - see <https://www.r-bloggers.com/how-to-use-jailbreakr/> which we will use to reorganise the spreadsheets and prepare the data for analysis.
+There are new `R` tools for manipulating excel sheets - see <https://www.r-bloggers.com/how-to-use-jailbreakr/> which we will use to reorganise the spreadsheets and prepare the data for analysis.
 
 ## Data wrangling
 
