@@ -123,15 +123,8 @@ map1 <- map1 %>%
 
 #### Simple analysis
 
-Now we have a data frame for the first map which we can further analyse...
+Now we have a data frame for the first map which we can further analyse for example plotting data over time. We have quarterly and full year data - lets just plot the quarterly data.
 
-For example plotting data over time. We have quarterly and full year data - lets just plot the quarterly data.
-
-This suggests that:
-
-1. The rate of CT scanning has increased quarter by quarter
-2. There was an extreme outlier earlier in the time series (Stafford and Surrounds CCG)
-3. Judged by IQR variation in CT scanning rates between CCGs has increased over time series
 
 
 ```{r, fig.cap= "Boxplot of map1 over time"}
@@ -152,15 +145,17 @@ map1 %>%
   theme_gov() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title =stringr::str_wrap(paste0(title), 50))
-
-
-
 ```
+This suggests that:
+
+1. The rate of CT scanning has increased quarter by quarter
+2. There was an extreme outlier earlier in the time series (Stafford and Surrounds CCG)
+3. Judged by IQR variation in CT scanning rates between CCGs has increased over time series
 
 
 ## Scaling up
 
-Now we have a method for extracting the data we can (try) to extract each table and combine the CCG data so we can look at the interrelationships between diagnostic tests. [I am doing this sheet by sheet but could be done programmatically although there are several differnt patterns].
+Now we have a method for extracting the data we can (try) to extract each table and combine the CCG data so we can look at the interrelationships between diagnostic tests. [I am doing this sheet by sheet but could be done programmatically although there are several different patterns].
 
 ```{r cache=TRUE}
 
@@ -557,7 +552,7 @@ write_csv(aov_diag, "aov_diag.csv")
 
 ```
 
-After much effort we now have a data frame of the CCG data. There are several different sets of time periods. These will need to be recoded. We have quarterly, annual and three yearly data.
+After much effort we now have a data frame of the CCG data. There are several different time periods categories. These will need to be recoded into quarterly, annual and three yearly data.
 
 
 
