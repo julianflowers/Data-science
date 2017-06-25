@@ -31,7 +31,7 @@ knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE)
 options(scipen = 10, digits = 3)
 ```
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 library(readxl)
 library(tidyverse)
 if(!require(c("hadley/xml2","rsheets/linen",
@@ -59,7 +59,6 @@ url <- "https://fingertips.phe.org.uk/documents/DiagAtlasData_291116.xlsx"
 destfile <- "aov_diag.xlsx"
 download.file(url, destfile)
 
-getwd()
 
 ```
 
@@ -111,7 +110,6 @@ map1 <- map1 %>%
 title <- unlist(data_list1[[1]][2,2])
 
 
-title %>% unlist
 
 ## Attach to sheet
 
@@ -157,7 +155,7 @@ This suggests that:
 
 Now we have a method for extracting the data we can (try) to extract each table and combine the CCG data so we can look at the interrelationships between diagnostic tests. [I am doing this sheet by sheet but could be done programmatically although there are several different patterns].
 
-```{r cache=TRUE}
+```{r map1, cache=TRUE}
 
 ## Map 1
   tables <- split_sheet(workbook$sheets$`1`)
@@ -173,14 +171,14 @@ mutate_if(is.numeric, as.character)%>%
 
 
 title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
+
 map1 <- map1 %>% 
   mutate(map = title1) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
 
-```{r}
+```{r map2}
 ## Map 2 
   tables <- split_sheet(workbook$sheets$`2`)
   data_set <- map(tables, function(x) x$values())
@@ -192,16 +190,15 @@ map2 <- map2 %>%
    mutate_if(is.numeric, as.character)%>%
     mutate_at(vars(8:15), as.numeric)
 
+title2<- unlist(data_set[[1]][2,2])
 
-  title2<- unlist(data_set[[1]][2,2])
-  title2 %>% unlist
 map2 <- map2 %>% 
   mutate(map = title2) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
 
-```{r}
+```{r map3}
 
 
 ## Map 3
@@ -216,13 +213,13 @@ map3 <- map3 %>%
     mutate_at(vars(8:15), as.numeric)
 
   title3 <- unlist(data_set[[1]][2,2])
-  title3 %>% unlist
-map3 <- map3 %>% 
+
+  map3 <- map3 %>% 
   mutate(map = title3) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
-```{r}
+```{r map16}
 ## Map 16 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`16`)
 glimpse(tables)
@@ -238,14 +235,14 @@ map161 <- map16 %>%
 
 
   title16 <- unlist(data_set[[1]][2,2])
-  title16 %>% unlist
-map16 <- map161 %>% 
+
+  map16 <- map161 %>% 
   mutate(map = title16) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = ISR, `95% lower`:map)
 ```
 
 
-```{r}
+```{r map17}
 ## Map 17 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`17`)
 glimpse(tables)
@@ -260,7 +257,6 @@ map17 <- map17 %>%
 
 title1 <- unlist(data_set[[1]][2,2])
 
-title1 %>% unlist
 
 map17 <- map17 %>% 
   mutate(map = title1) %>%
@@ -269,7 +265,7 @@ map17 <- map17 %>%
 
 
 
-```{r}
+```{r map19}
 
 ## Map 19 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`19`) 
@@ -285,16 +281,15 @@ map19 <- map19 %>%
     mutate_at(vars(5:14), funs(as.numeric(.)))  
 
 title1 <- unlist(data_set[[1]][2,2])
-title1 %>% unlist
 
 map19 <- map19 %>% 
-  mutate(map = title1, Year = as.character(Year)) %>%
+  mutate(map = title1) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = ISR, `95% lower`:map)
 ```
 
 
 
-```{r}
+```{r map20}
 ## Map 20 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`20`)
 glimpse(tables)
@@ -308,15 +303,15 @@ map20 <- map20 %>%
     mutate_at(vars(5:12), funs(as.numeric(.)))
   
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map20 <- map20 %>% 
+
+  map20 <- map20 %>% 
   mutate(map = title1) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
 ```
 
 
 
-```{r}
+```{r map22}
 ## Map 22 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`22`)
 glimpse(tables)
@@ -330,14 +325,14 @@ map22 <- map22 %>%
     mutate_at(vars(5:14), funs(as.numeric(.)))  
 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map22 <- map22 %>% 
-  mutate(map = title1, Year = as.character(Year)) %>%
+
+  map22 <- map22 %>% 
+  mutate(map = title1) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = ISR, `95% lower`:map)
 ```
 
 
-```{r}
+```{r map23}
 
 ## Map 23 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`23`)
@@ -352,14 +347,14 @@ map23 <- map23 %>%
     mutate_at(vars(5:12), funs(as.numeric(.))) 
 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map23 <- map23 %>% 
+
+  map23 <- map23 %>% 
   mutate(map = title1) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = DSR, `95% lower`:map)
 ```
 
 
-```{r}
+```{r map24}
 ## Map 24 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`24`)
 glimpse(tables)
@@ -373,14 +368,14 @@ map24 <- map24 %>%
     mutate_at(vars(8:15), funs(as.numeric(.)))  
 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map24 <- map24 %>% 
+
+  map24 <- map24 %>% 
   mutate(map = title1) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
 
-```{r}
+```{r map25}
 
 ## Map 25 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`25`)
@@ -395,13 +390,13 @@ map25 <- map25 %>%
     mutate_at(vars(8:15), funs(as.numeric(.)))  
 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map25 <- map25 %>% 
+
+  map25 <- map25 %>% 
   mutate(map = title1) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
-```{r}
+```{r map26}
 ## Map 26 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`26`)
 glimpse(tables)
@@ -414,13 +409,13 @@ map26 <- map26 %>%
     mutate_if(is.numeric, as.character)%>%
     mutate_at(vars(5:12), funs(as.numeric(.))) 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map26 <- map26 %>% 
+
+  map26 <- map26 %>% 
   mutate(map = title1) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
 ```
 
-```{r}
+```{r map27}
 ## Map 27 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`27`)
 glimpse(tables)
@@ -434,13 +429,13 @@ map27 <- map27 %>%
     mutate_at(vars(8:15), funs(as.numeric(.)))  
 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map27 <- map27 %>% 
+
+  map27 <- map27 %>% 
   mutate(map = title1) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
-```{r}
+```{r map28}
 ## Map 28 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`28`)
 glimpse(tables)
@@ -454,13 +449,13 @@ map28 <- map28 %>%
     mutate_at(vars(8:15), funs(as.numeric(.)))  
 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map28 <- map28 %>% 
+
+  map28 <- map28 %>% 
   mutate(map = title1) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
-```{r}
+```{r map29}
 
 ## Map 29 - 4 subtables
 tables <- split_sheet(workbook$sheets$`29`)
@@ -474,13 +469,13 @@ map29 <- map29 %>%
     mutate_if(is.numeric, as.character)%>%
     mutate_at(vars(8:15), funs(as.numeric(.))) 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map29 <- map29 %>% 
+
+  map29 <- map29 %>% 
   mutate(map = title1) %>%
   select(Period, `CCG code`, `CCG name`, Rate:map)
 ```
 
-```{r}
+```{r map30}
 ## Map 30  2 subtables
 tables <- split_sheet(workbook$sheets$`30`)
 glimpse(tables)
@@ -493,13 +488,13 @@ map30 <- map30 %>%
    mutate_if(is.numeric, as.character)%>%
     mutate_at(vars(5:12), funs(as.numeric(.))) 
   title1 <- unlist(data_set[[1]][2,2])
-  title1 %>% unlist
-map30 <- map30 %>% 
+
+  map30 <- map30 %>% 
   mutate(map = title1) %>%
   select(Period = Year, `CCG code`, `CCG name`, Rate = Percent, `95% lower`:map)
 ```
 
-```{r}
+```{r map36}
 ## Map 36 - this differs - only 2 subtables
 tables <- split_sheet(workbook$sheets$`36`)
 glimpse(tables)
@@ -520,7 +515,7 @@ map36 <- map36 %>%
 
 
 
-## Put it all together - bit of surgery on map 16 first
+## Put it all together
 
 ```{r}
 map_all <-list(map1, map2, map3, map16, map17, map19, map20, map22, map23, map24, map25, map26, map27, map28, map29, map30, map36)
@@ -528,6 +523,7 @@ map_all <-list(map1, map2, map3, map16, map17, map19, map20, map22, map23, map24
 aov_maps <- map_df(map_all, bind_rows)
 
 aov_diag <- aov_maps %>%
+  unnest(`CCG code`, `CCG name`) %>%
   separate(Period, c("year", "quarter"), sep = "_") %>%
   mutate(year = recode(year, 
                          "506" = "2005/06",
@@ -545,8 +541,10 @@ aov_diag <- aov_maps %>%
                          "2015/16_2015/16" = "2015/16")) %>%
   mutate(year_quarter = paste(year, quarter), q_flag = ifelse(!is.na(quarter), 1, 0)) %>%
   select(map, year_quarter, q_flag,  everything())
+head(aov_diag)
 
-write_csv(aov_diag, "aov_diag.csv")
+
+write.csv(aov_diag, "aov_diag.csv")
 
   
 
