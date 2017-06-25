@@ -1,0 +1,122 @@
+---
+title: "Correlation network plots of health profiles"
+author: "Julian Flowers"
+date: "15/05/2017"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Load libraries
+
+```{r load libraries}
+library(fingertipsR) ## for interacting with the Fingertips API
+library(tidyverse, warn.conflicts = FALSE) ## packages for data manipulation and plotting
+library(stringr) ## text manipulation
+library(Hmisc) ## data description
+library(corrr) ## calcuate correlation matrices
+library(ggraph) ## plot as network charts
+library(igraph, warn.conflicts = FALSE) ## network tools
+```
+
+```{r}
+
+profiles <- profiles()
+profiles %>% select(ProfileID, ProfileName) %>% distinct() %>%
+  knitr::kable(align = "l")
+
+```
+
+
+
+## Select profile and download data
+
+```{r}
+
+options(digits = 2)
+
+profile_name <- filter(profiles, ProfileID == 26) %>% select(ProfileName) %>% distinct()
+
+hp_data <- fingertips_data(ProfileID = 26)
+
+unique(hp_data$IndicatorName) 
+```
+
+
+## Normalise the data
+
+This part of the script:
+
+* converts factor (categorical) variables to character variables
+* simplifies column names
+* filters the most recent data for each indicator
+* creates a unique index for each indicator (indicator+age+sex+period)
+* converts a long format table to a cross tab
+* removes duplicates
+* fills missing data with mean values
+* scales (normalises) the dataset (i.e. calculates z-scores for each variable)
+
+```{r}
+
+## scale the data
+hp_data1 <- hp_data %>%
+  mutate_if(is.factor, as.character) %>%
+  filter(CategoryType == "", AreaType == "County & UA" ) %>%
+  janitor::clean_names() %>%
+  select(indicatorname, areaname, age, sex, timeperiod, value) %>%
+  group_by(indicatorname, sex) %>%
+  filter(timeperiod == max(timeperiod)) %>%
+  mutate(index = paste(sex,  "-",age , "-",timeperiod, "-", indicatorname) ) %>%
+  ungroup() %>%
+  select(-c(indicatorname, sex, age, timeperiod)) %>%
+  distinct() %>%
+  spread(index, value) %>%
+  janitor::clean_names() %>%
+  mutate_if(is.numeric, funs(impute(., mean))) %>%
+  mutate_if(is.numeric, funs(scale(.))) 
+
+```
+
+## Create correlation network map
+
+This code:
+
+* Calculates the correlation matrix between all variables
+* Extracts well correlated variables (r > 0.7)
+* Converts this to graph (network) format
+* Plots the correlations as a network map
+
+
+```{r, fig.height=11, fig.width=8}
+
+## see https://drsimonj.svbtle.com/how-to-create-correlation-network-plots-with-corrr-and-ggraph
+hp_cor <- hp_data1 %>%
+  select(3:ncol(.)) %>%
+  correlate() %>%
+  stretch() 
+
+graph_cors <- hp_cor %>% 
+  filter(abs(r) > 0.7) %>% 
+  graph_from_data_frame(directed = FALSE)
+
+ggraph(graph_cors, layout = "igraph", algorithm = "nicely") +
+ geom_edge_link(aes(edge_alpha = abs(r), color = r, label = round(r,2)), label_size = 2) +
+  guides(edge_alpha = "none", edge_width = "none") +
+  scale_edge_colour_gradientn(limits = c(-1, 1), colors = c("firebrick2", "dodgerblue2")) +
+  geom_node_point(color = "black", size = 3) +
+  geom_node_point() +
+  geom_node_text(aes(label = str_wrap(substring(name, 1,70), 30)), size  = 2, repel = TRUE) +
+  theme_graph() +
+  labs(title = paste("Correlation map of ", profile_name$ProfileName, "profile"))
+
+
+```
+
+
+
+
