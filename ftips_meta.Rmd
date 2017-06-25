@@ -1,0 +1,101 @@
+---
+title: "Analysis of Fingertips metadata"
+author: "Julian Flowers"
+date: "25/06/2017"
+output: 
+  ioslides_presentation: 
+    incremental: yes
+    keep_md: yes
+    smaller: yes
+    widescreen: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, message = FALSE, warning = FALSE)
+
+library(fingertipsR)
+library(tidyverse)
+library(stringr)
+library(tidytext)
+library(wordcloud)
+library(topicmodels)
+library(text2vec)
+library(LDAvis)
+
+```
+
+## Metadata
+
+```{r,  cache=TRUE}
+prof_meta <- indicator_metadata(ProfileID = c(19, 40))
+
+glimpse(prof_meta)
+
+```
+
+## Meta
+
+```{r, cache=TRUE}
+prof_meta %>% slice(7) %>%
+  t() %>%
+  data.frame() %>%
+  knitr::kable()
+prof_id <- indicators(ProfileID = c(19, 40)) 
+
+prof_meta <- prof_meta %>%
+  left_join(prof_id, by = c("Indicator.ID" = "IndicatorID"))
+
+text <- prof_meta %>%
+  select(Indicator.ID, DomainName, Indicator.full.name, Definition, Rationale)
+
+```
+
+## Comparison cloud
+```{r, fig.height=5, fig.width=10}
+
+text <- text %>%
+  mutate_if(is.factor, as.character) %>%
+  unite(text, c(Indicator.full.name, Definition, Rationale))
+
+text$text <- tm::removeNumbers(text$text)
+text$text <- tm::removePunctuation(text$text)
+text$text <- tolower(text$text)
+
+tidymeta <- text %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  arrange(DomainName) %>%
+  count(DomainName, word, sort = TRUE) %>%
+  reshape2::acast(word ~ DomainName, 
+                  value.var = "n", fill = 0) %>%
+  comparison.cloud(max.words = 500, title.size = .8, random.order = FALSE, rot.per = 0.4)
+
+```
+
+
+
+
+
+## Slide with R Output
+
+```{r cars, echo = TRUE}
+
+text %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  arrange(DomainName) %>%
+  count(DomainName, word, sort = TRUE) %>%
+  reshape2::acast(word ~ DomainName, 
+                  value.var = "n", fill = 0) %>%
+  commonality.cloud(max.words = 100)
+
+
+
+```
+
+## Slide with Plot
+
+```{r pressure}
+plot(pressure)
+```
+
