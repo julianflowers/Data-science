@@ -7,6 +7,7 @@ library(stringr)
 
 fingertips_latest_data <- function(ProfileID = 26, AreaTypeID = 102, inequalities = FALSE){
   require(dplyr)
+  require(fingertipsR)
   ind_test <- fingertips_data(ProfileID = ProfileID, AreaTypeID = AreaTypeID, inequalities = inequalities)
   ind_test <- ind_test %>% mutate(index = paste(IndicatorID, Timeperiod, Age, Sex))
   
