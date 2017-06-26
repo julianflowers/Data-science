@@ -38,7 +38,7 @@ fingertips_red_red <- function(ProfileID = 26, AreaTypeID = 102){
   
 }
 
-## Function to identfy "top-10s' in latest data ie where trend is worsening and areas are worse than comparator
+## Function to identfy "top-10s' in latest data 
 
 
 fingertips_top_ten <- function(ProfileID = 26, AreaTypeID = 102){
