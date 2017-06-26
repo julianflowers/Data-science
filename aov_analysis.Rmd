@@ -1,9 +1,9 @@
 ---
 title: "Diagnostic atlas of variation"
 output:
-  pdf_document: default
-  html_notebook: default
   html_document: default
+  html_notebook: default
+  pdf_document: default
 editor_options:
   chunk_output_type: inline
 ---
@@ -20,36 +20,30 @@ if(!require("factoextra"))install.packages("factoextra")
 library(factoextra)
 if(!require("FactoMineR"))install.packages("FactoMineR")
 library(FactoMineR)
-gov_cols
 
 ```
 
 
-Created a file of CCG data from the Diagnostic Atlas of Variation
 
-```{r}
-aov <- readr::read_csv("aov.csv", col_types = c("cccdddddic"))
-```
 
-## Structure of the data
-
-The file contains:
-
-1. Data for 17 CCG maps
-2. Three type of time periods - quarterly, annual and three yearly
-
-This is summarised in table 1.
 
 ```{r}
 
+aov_analysis <- readr::read_csv("aov_ccg.csv")
 
-aov %>%
-  group_by(map, Period) %>%
+aov_analysis %>%
+  group_by(map_no, Period) %>%
   count() %>%
-  tidyr::spread(map, n) %>%
+  tidyr::spread(map_no, n, fill = 0) %>%
   knitr::kable(caption = "Table1: Available time periods for each indicator; CCG counts")
 
 ### need to check map 24 and map 25
+
+
+aov_analysis %>%
+  filter(map_no == "Map 24", Period == "2015/16") %>%
+  distinct()
+
   
 
 
@@ -66,16 +60,22 @@ I am going to compare rates of utilisation of radiological, endoscopic and relat
 
 
 ```{r}
- aov_endo <- aov %>%
-  filter(map %in% c("Map 1: Rate of computed axial tomography (CT) activity per weighted population by CCG",
-                    "Map 2: Rate of magnetic resonance imaging (MRI) activity per weighted population by CCG",
-                    "Map 16: Rate of colonoscopy procedures and flexible sigmoidoscopy procedures per population by CCG", 
-                    "Map 17: Rate of computed tomography (CT) colonography procedures per weighted population by CCG", 
-         "Map 19: Rate of gastroscopy (upper gastrointestinal endoscopy) procedures per population by CCG" , 
-         "Map 20: Percentage of patients undergoing gastroscopy (upper gastrointestinal endoscopy) procedures aged under 55 years by CCG", 
-         "Map 22: Rate of endoscopic ultrasound procedures per population by CCG"))
+ aov_endo_latest <- aov_analysis %>%
+  filter(map_no %in% c("Map 1", "Map 2","Map 16", "Map 17", "Map 19", "Map 20", "Map 22" )) %>%
+  group_by(map_no) %>%
+  do(tail(., 1)) %>%
+  mutate(index = stringr::str_c(map_no,"-", Period)) %>%
+  select(index)
 
-head(aov_endo)
+aov_endo <- aov_analysis %>%
+  mutate(index = stringr::str_c(map_no,"-", Period)) 
+
+aov_endo %>%
+  filter( index %in% aov_endo_latest$index, !`CCG name` == "ENGLAND") %>%
+  select(map_no,  `CCG name`, Rate) %>%
+  spread(map_no, Rate) %>%
+  select(-`CCG name`) %>%
+  pairs(pch = 20, panel = panel.smooth, main= "Scatter plot of CCG level scanning and endoscopy rates")
 
 
 ```
@@ -118,48 +118,34 @@ aov_endo %>%
 
 ```{r}
 ## latest data
-aov_endo %>%
-  filter(!stringr::str_detect(Period, "Q")) %>%
-  group_by(map) %>%
-  arrange(desc(Period)) %>%
-  slice(1) %>%
-  mutate(index = paste(Period, "-", map)) %>%
-  select(index) %>%
-  ungroup() -> latest_data
-
 aov_latest <- aov_endo %>%
-    filter(!stringr::str_detect(Period, "Q")) %>%
-    mutate(index = paste(Period, "-", map)) %>%
-    filter(index %in% latest_data$index)
+  filter( index %in% aov_endo_latest$index, !`CCG name` == "ENGLAND") %>%
+  select(map_no,  `CCG name`, Rate) %>%
+  spread(map_no, Rate) %>%
+  select(-`CCG name`)
 
-aov_latest_wide <- aov_latest %>%
-  select(index, `CCG code`, `CCG name`, Rate) %>%
-  tidyr::spread(index, Rate) %>% data.frame() %>% na.omit()
-
-colnames(aov_latest_wide) <- substring(colnames(aov_latest_wide), 1, 20)
-
-
-rownames(aov_latest_wide) <- aov_latest_wide$`CCG name`
+rownames(aov_latest) <- aov_latest$`CCG name`
 
 library(corrr)
 
-correlate(aov_latest_wide[,-c(1:2)]) %>% rearrange(method = "HC", absolute = TRUE) %>% fashion()
+correlate(aov_latest)%>% 
+  rearrange(method = "HC", absolute = TRUE) %>% 
+  fashion()
 
-aov_scale_wide <- purrr::map(aov_latest_wide[, -c(1:2)], scale) %>% data.frame() %>% na.omit()
+aov_scale_wide <- purrr::map(aov_latest, scale) %>% data.frame() %>% na.omit()
 
 mean(is.na(aov_scale_wide))
 
 set.seed(123)
 
-  fviz_nbclust(aov_scale_wide, kmeans, method = "gap_stat")
+fviz_nbclust(aov_scale_wide, kmeans, method = "silhouette" )
 
-aov_k <- kmeans(aov_scale_wide, 3, nstart = 25, iter.max = 15)
+aov_k <- kmeans(aov_scale_wide, 6, nstart = 25, iter.max = 15)
 
 
-fviz_cluster(aov_k, aov_latest_wide[, -c(1:2)], ellipse.type = "norm") + 
-geom_text(label = aov_latest_wide$CCG.name, size = 2) 
+fviz_cluster(aov_k, aov_latest, ellipse.type = "norm") 
 
-aov_pca <- PCA(aov_latest_wide[, -c(1:2)])
+aov_pca <- PCA(aov_latest)
 
 fviz_contrib(aov_pca, choice = "var", axes = 1)
 
