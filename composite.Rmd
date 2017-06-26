@@ -1,0 +1,184 @@
+---
+title: "Composite indicators: some thoughts"
+author: "Julian Flowers"
+date: "22/06/2017"
+output: 
+  ioslides_presentation: 
+    incremental: yes
+    smaller: yes
+    widescreen: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+source("ftips_functions.R")
+library(tidyverse)
+library(pander)
+library(govstyle)
+library(factoextra)
+library(FactoMineR)
+```
+
+## Motivation
+
+- LA scorecard
+- Composite indicators often requested
+- Different methods proposed
+- This compares possible methods
+
+## Method
+
+- Use some trial data (health profile indicators)
+- create a ranked dataset and a scaled dataset
+- create combined indicator:
+    + mean indicator value
+    + median rank
+    + mean z-score
+    + cluster analysis - group areas on basis of similarity in the data
+    + Use principal components analysis (PCA) first component
+- PCA creates a score for each area based on weighted combinations of indicators. It will create as may components as there are indicators and they are all uncorrelated. The first component captures the largest proportion of the overall variation in the indicators
+
+
+
+## Step 1 - some trial data
+
+```{r}
+data <- fingertips_latest_data() ## downloads latest data for health profiles
+```
+
+```{r, echo=FALSE}
+index <- as.character(unlist( unique(data$IndicatorName)))
+sample_data <- data %>% 
+  mutate_if(is.factor, as.character) %>%
+  filter(IndicatorName %in% c("Smoking prevalence in adults", "Percentage of physically active adults","Excess weight in adults", "Smoking related deaths"  ), !AreaType == "Region", !AreaType == "Country", Sex == "Persons") %>%
+  select(IndicatorName, AreaName, Value) %>%
+  spread(IndicatorName, Value)
+```
+
+```{r, echo=FALSE}
+sample_data %>%
+  select(-AreaName) %>%
+  pairs(panel = panel.smooth)
+```
+
+## Distribution of original data
+
+```{r}
+sample_data %>%
+  gather(indicator, value, 2:5) %>%
+  ggplot(aes(indicator, log10(value))) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+## Add ranks (and reverse polarity)
+```{r}
+rank_data <- sample_data %>%
+  mutate(`Percentage of physically active adults` =  -1 * `Percentage of physically active adults`) %>%
+  mutate_if(is.numeric, rank)
+```
+
+## Summary of rank data
+```{r, results = "asis"}
+head(rank_data) %>%
+  knitr::kable(format = "pandoc")
+```
+
+
+## Scale data
+
+```{r, results="asis"}
+options(digits = 3)
+
+scale_data <- sample_data %>%
+  mutate(`Percentage of physically active adults` =  -1 * `Percentage of physically active adults`) %>%
+  mutate_if(is.numeric, scale)
+head(scale_data)%>%
+  knitr::kable(format = "pandoc")
+```
+
+## Method 1: mean value
+
+```{r}
+
+rownames(sample_data) <- sample_data$AreaName
+
+means <- rowMeans(sample_data[, 2:5])
+  
+
+
+```
+
+## Method 2: mean rank
+
+```{r}
+
+rownames(rank_data) <- rank_data$AreaName
+
+median_ranks <- rowMeans(rank_data[, 2:5], na.rm = TRUE)
+  
+
+
+```
+
+
+## Method 3: mean z-score
+
+```{r}
+
+rownames(scale_data) <- scale_data$AreaName
+
+mean_z <- rowMeans(scale_data[, 2:5])
+  
+
+
+```
+
+
+## Method 4: pca
+
+```{r}
+
+rownames(scale_data) <- scale_data$AreaName
+
+pca <- psych::pca(scale_data[, 2:5])
+
+summary(pca)
+  
+pca1 <- pca$scores
+pca2 <- pca$loadings
+
+```
+
+## Combine
+```{r}
+
+test <- data.frame(cbind(means, mean_ranks, mean_z, pca1))
+
+pairs(test, panel = panel.smooth)
+
+```
+
+## Clustering
+
+* An alternative to calculating a composite score
+* Groups areas based on similarity of data
+* Algorithm optimises number of clusters
+
+## Clustering: hierarchical
+
+```{r}
+res.hc <- eclust(scale_data[, -1], "hclust")
+
+fviz_dend(res.hc, cex = 0.4, palette = "Spectral", type = "circular", main = "Clustering of local authorities")
+```
+
+## Clustering: kmeans
+
+```{r}
+
+res.km <- eclust(scale_data[, -1], "kmeans", k = 4, nstart = 25)
+
+
+```
+
