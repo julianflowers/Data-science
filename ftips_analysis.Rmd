@@ -1,0 +1,227 @@
+---
+title: 'Fingertips user: Google analytics report'
+author: "Julian Flowers"
+date: '`r Sys.Date()`'
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(govstyle)
+library(data.table)
+options(digits = 1)
+source("updated_ga.R")
+```
+
+```{r data download and convert to data.table}
+ds <- fread("ga_fingertips.csv")
+
+
+dsdt <- as.data.table(ds)
+
+## Index
+setkey(dsdt, date)
+
+## Calculated fields
+
+dsdt <- dsdt[, hits_per_session := hits/sessions]
+dsdt <- dsdt[, date := lubridate::ymd(date)]
+
+rm(ds)
+```
+```{r}
+
+mindate <- range(dsdt$date)[1]
+maxdate <- range(dsdt$date)[2]
+
+```
+
+# The report
+
+This report covers Google analytics for Fingertips from `r mindate` to `r maxdate`.
+
+
+
+## Trend in hits
+
+```{r}
+
+dsdt[, .(total_hits = sum(hits)), by = date] %>%
+  ggplot(aes(date, total_hits)) +
+  geom_line(aes(group = 1)) +
+  geom_smooth(aes(group = 1)) +
+  theme_gov() +
+  theme(axis.text.x = element_text( size = rel(0.6) ))+ 
+  labs(title = "Trend in Fingertips: total hits") +
+  scale_x_date(name = "Date", date_breaks = "3 month", date_labels = "%m/%Y")
+
+
+```
+
+
+## Trend in sessions
+
+```{r}
+
+dsdt[, .(total_sessions = sum(sessions)), by = date] %>%
+  ggplot(aes(date, total_sessions)) +
+  geom_line(aes(group = 1)) +
+  geom_smooth(aes(group = 1)) +
+  theme_gov() +
+  theme(axis.text.x = element_text( size = rel(0.6) ))+ 
+  labs(title = "Trend in Fingertips: daily sessions") +
+  scale_x_date(name = "Date", date_breaks = "3 month", date_labels = "%m/%Y")
+
+
+
+
+```
+
+## Trend in hits per session
+
+```{r}
+
+dsdt[, .(hits_sessions = sum(hits)/ sum(sessions)), by = date] %>%
+  ggplot(aes(date, hits_sessions)) +
+  geom_line(aes(group = 1)) +
+  geom_smooth(aes(group = 1)) +
+  theme_gov() +
+  theme(axis.text.x = element_text( size = rel(0.6) ))+ 
+  labs(title = "Trend in Fingertips: daily hits per session ratio", 
+       y = "Hits per session") +
+  scale_x_date(name = "Date", date_breaks = "3 month", date_labels = "%m/%Y")
+
+
+
+
+
+```
+
+## Trend in event categories
+
+```{r, fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+
+dsdt[, .(events  = sum(totalEvents)), by = c("date", "eventCategory")][events > 20] %>% 
+  
+  ggplot(aes(date, events)) +
+  geom_line(aes(group = 1)) +
+  geom_smooth(aes(group = 1)) +
+  theme_gov() +
+    scale_x_date(name = "Date", date_breaks = "6 months", date_labels = "%m/%Y") +
+
+    facet_wrap(~ eventCategory, scales = "free", ncol = 4, labeller =  labeller(label_wrap_gen(width = 20))) +
+  theme(strip.text.x = element_text(size  =rel(.6)) ) +
+  labs(title = "Trend in Fingertips: events")
+```
+
+
+```{r}
+options(scipen = 2)
+days <- as.numeric(maxdate - mindate)
+prac <- dsdt[eventCategory == "PracticeSearch",.(mean = sum(totalEvents)/days) ] 
+search <- dsdt[eventCategory == "Search",.(mean = sum(totalEvents)/days) ] 
+download <- dsdt[eventCategory == "Download",.(mean = sum(totalEvents)/days) ] 
+
+
+```
+
+On average there are:
+
+* `r prac$mean` searches for GP data per day
+* `r search$mean` searches per day
+* `r download$mean` downloads per day
+
+
+## Trend in downloads
+
+```{r}
+
+library(ggfortify)
+library(changepoint)
+downloads <-dsdt[eventCategory == "Download", .(tot_downloads = sum(totalEvents)), by = date ] 
+
+downloads.ts <- as.ts(downloads$tot_downloads, start(2016, 1), frequency = 365.25 )
+
+autoplot(cpt.mean(downloads.ts)) +
+  labs(title = "Changepoint anlaysis of downloads")
+  
+cpt <- cpt.mean(downloads.ts)
+cp <- downloads[cpt@cpts, ][1]
+
+
+precp <- downloads[date< "2017-05-01", .(mean_downloads = sum(tot_downloads)/ .N)]
+postcp <- downloads[date >= "2017-05-01", .(mean_downloads = sum(tot_downloads)/ .N)]
+```
+
+  
+* Daily downloads significantly increased after implementation of download options `r cp$date` from a daily average of `r precp$mean_downloads` downloads to `r postcp$mean_downloads`.
+
+> insert some email feedback
+
+
+## Use by city - top 50
+
+```{r, fig.height=6, fig.width=8, message=FALSE, warning=FALSE, results="asis"}
+n <- 50
+
+dsdt[, .(total_hits = sum(hits)), by = city][order(-total_hits)] %>%
+  top_n(n) %>%
+  ggplot(aes(reorder(city, total_hits), log10(total_hits))) +
+  geom_col(fill = gov_cols[10]) +
+  coord_flip() +
+  theme_gov() +
+  geom_text(aes(label = total_hits, hjust = 0), size = rel(.8)) +
+  labs(title = paste("Top", n, " cities") , 
+        y = paste("Total sessions since", mindate, "(log scale)"), 
+        x = "")
+
+
+```
+
+## Top 50 landing pages
+
+
+```{r, fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+
+
+
+dsdt[, .(total_sessions = sum(sessions)), by = landingPagePath][order(-total_sessions)] %>%
+  top_n(n) %>%
+  mutate(page = stringr::str_replace(landingPagePath, "fingertips.phe.org.uk/profile/", ""), 
+         page = stringr::str_replace(page, "/", "")) %>%
+  ggplot(aes(reorder(page, total_sessions), log10(total_sessions))) +
+  geom_col(fill = gov_cols[10]) +
+  coord_flip() +
+  geom_text(aes(label = total_sessions), size = rel(1.5), hjust = 0) +
+  theme_gov() +
+  labs(title = paste("Top", n, "landing pages"), 
+       y = paste("Total sessions since", mindate, "(log scale)"), 
+       x = "")
+
+
+```
+
+## Top 50 searches
+
+```{r}
+dsdt[stringr::str_detect(landingPagePath, "search"), .(total_sessions = sum(sessions)), by = landingPagePath][order(-total_sessions)] %>%
+  mutate(page = stringr::str_replace(landingPagePath, "fingertips.phe.org.uk/search/", ""), 
+         page = stringr::str_replace(page, "/", "")) %>%
+  filter(!stringr::str_detect(page, "^finger")) %>%
+  select(page, total_sessions)%>%
+  top_n(50) %>%
+ggplot(aes(reorder(page, total_sessions), total_sessions)) +
+  geom_col(fill = gov_cols[10]) +
+  coord_flip() +
+  geom_text(aes(label = total_sessions), size = rel(2), hjust = 0 ) +
+  theme_gov() +
+  theme(axis.text = element_text(size = rel(0.5))) +
+  labs(title = paste("Top", n, "Fingertips searches"), 
+       y = paste("Total searches since", mindate), 
+        x = "")
+```
+
