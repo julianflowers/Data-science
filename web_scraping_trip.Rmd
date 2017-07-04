@@ -1,0 +1,295 @@
+---
+title: "Web scraping from the TRIP database with rvest"
+author: "Julian Flowers"
+date: "21/04/2017"
+output: html_document
+params:
+  search_text: "machine+learning+public+health" 
+  subsearch: "random+forest"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Based on this video
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/MFQTHrCiAxA" frameborder="0" allowfullscreen></iframe>
+
+and utilising the [Trip database](https://www.tripdatabase.com).
+
+```{r}
+library(rvest)
+library(httr)
+library(XML)
+library(xml2)
+devtools::install_github("hadley/dplyr")
+library(dplyr)
+library(ggplot2)
+library(govstyle)
+library(tidyr)
+```
+
+```{r}
+search_term <- params$search_text
+n <- 1000
+
+url <- paste0("https://www.tripdatabase.com/search/xml?key=PHE31413&criteria=", search_term, "&max=", n)
+
+search <- read_xml(url)
+
+```
+
+
+
+```{r ## Abstract latest `r n` titles}
+search1 <- search %>%
+  xml_contents() %>%
+  xml_nodes("id") 
+  
+
+search_list <- unlist(as_list(search1)) 
+```
+
+
+
+```{r ## Extract IDs}
+df <- list()
+for(i in seq_along(search_list)){
+  
+  x <- search_list[[i]][[1]][1]
+  df <- data.frame(rbind(df, x))
+
+}
+ 
+df <- df %>% unlist() %>% data.frame() %>%
+  distinct()
+
+colnames(df) <- "id"
+```
+
+```{r ## Extract title}
+search2 <- search %>%
+  xml_contents() %>%
+  xml_nodes("title") %>%
+  as_list() %>%
+  unlist()
+
+ test <- data.frame(search_list, search2)
+
+df2 <- list()
+for(i in seq_along(search_list)){
+  
+  x <- search2[[i]][[1]][1]
+  df2 <- data.frame(rbind(df2, x))
+
+}
+ 
+df2 <- df2 %>% unlist() %>% data.frame() 
+
+colnames(df2) <- "title"
+```
+
+```{r ## Extract links}
+search4 <- search %>%
+  xml_contents() %>%
+  xml_nodes("link") %>%
+  as_list()
+
+df4 <- list()
+for(i in seq_along(search_list)){
+  
+  x <- search4[[i]][[1]][1]
+  df4 <- data.frame(rbind(df4, x))
+
+}
+ 
+df4 <- df4 %>% unlist() %>% data.frame() 
+
+colnames(df4) <- "link"
+```
+
+
+```{r ## Extract publication date}
+search3 <- search %>%
+  xml_contents() %>%
+  xml_nodes("pubDate") %>%
+  as_list()
+
+df3 <- list()
+for(i in seq_along(search_list)){
+  
+  x <- search3[[i]][[1]][1]
+  df3 <- data.frame(rbind(df3, x))
+
+}
+ 
+df3 <- df3 %>% unlist() %>% data.frame()
+
+colnames(df3) <- "pubDate"
+```  
+
+
+```{r ## Put it together as a data frame}
+pubs <- bind_cols(df, df2, df3, df4)
+
+pubs <- pubs %>%
+  mutate_if(is.factor, as.character ) %>%
+  mutate(pubDate = lubridate::dmy(substring(pubDate, 6, 17)), year = lubridate::year(pubDate))
+
+```
+
+```{r}
+pubs %>%
+  group_by(year) %>%
+  filter(year > 1989) %>%
+  count() %>%
+  ggplot(aes(year, n)) +
+  geom_line() +
+  geom_point() + 
+  labs(title = "Returns from Trip database based on search term:", 
+       subtitle = params$search_text) +
+  scale_x_continuous(breaks  = pubs$year)
+```
+
+```{r}
+subsearch <- params$subsearch
+```
+
+
+## Mentions of *`r subsearch`* in titles
+
+```{r, results="asis"}
+
+pubs %>%
+  filter(stringr::str_detect(title, subsearch )) %>%
+  head(50) %>%
+  knitr::kable()
+
+```
+
+## Wordcloud
+```{r message=FALSE, warning=FALSE}
+library(tidytext)
+library(wordcloud)
+
+textPubs <- pubs %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE)
+
+with(textPubs, wordcloud(word, n, min.freq = 2, max.words = "Inf", 
+                      rot.per = 0.4, random.order = FALSE, 
+                      colors = brewer.pal(8, "Dark2")))
+  
+
+```
+
+## Topic models and LDAVis
+
+```{r}
+library(topicmodels)
+
+corp_dtm <- pubs %>%
+  group_by(id) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(id, word, sort = TRUE) 
+
+corp_dtm <- corp_dtm %>%
+  cast_dtm(id, word, n)
+corp_dtm
+
+corp_lda <- LDA(corp_dtm, k = 12, control = list(seed = 1234))
+corp_lda
+```
+
+```{r fig.width =8, fig.asp= .68}
+
+corp_tidy_lda <- tidy(corp_lda)
+
+corp_tidy_lda %>%
+  group_by(topic) %>%
+  top_n(100, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta) %>%
+  ggplot(aes(term, beta, fill = factor(topic), label = term)) +
+  geom_bar(stat = "identity") +
+  geom_text(hjust = -0.2, size = 2, check_overlap = TRUE) +
+  coord_polar() +
+  facet_wrap(~topic, ncol =4) +
+   theme_bw()+
+  
+  labs(fill = "Topic", y = "" , x = "") +
+  expand_limits(y = c(0, .1)) + 
+  theme(legend.position = "", axis.text.y = element_blank(), axis.ticks = element_blank(), axis.text.x = element_blank())
+ 
+  
+
+```
+
+## Classifying documents
+
+```{r document classification}
+lda_gamma <- tidytext:::tidy.LDA(corp_lda, matrix = "gamma")
+
+lda_gamma
+
+abs_class <- lda_gamma %>%
+  group_by(document) %>%
+  top_n(1, gamma) %>%
+  ungroup() %>%
+  arrange(gamma)
+
+abs_class %>%
+  left_join(pubs, by = c("document" = "id")) %>%
+  select(-gamma) %>%
+  DT::datatable(filter = "top" )
+
+
+  
+
+
+```
+
+
+
+## LDA vis
+
+Based on [this example](http://text2vec.org/topic_modeling.html)
+
+```{r}
+library(LDAvis)
+
+library(text2vec)
+
+
+
+tokens <- pubs$title %>% 
+  tolower %>% 
+  word_tokenizer
+# turn off progressbar because it won't look nice in rmd
+it <- itoken(tokens, ids = pubs$id, progressbar = FALSE)
+
+stop_words <- stop_words
+v <- create_vocabulary(it, stopwords =stop_words$word) 
+
+v %>% 
+  prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.2) 
+  
+vectorizer <- vocab_vectorizer(v)
+dtm = create_dtm(it, vectorizer, type = "lda_c")
+
+lda_model <- 
+  LDA$new(n_topics = 12, vocabulary = v, 
+          doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_distr <-
+  lda_model$fit_transform(dtm, n_iter = 1000, convergence_tol = 0.01, 
+                          check_convergence_every_n = 10)
+```
+
+```{r}
+lda_model$plot()
+```
+
+
