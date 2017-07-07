@@ -1,0 +1,15 @@
+base
+tidyverse
+ggplot2
+tibble
+tidyr
+readr
+purrr
+dplyr
+govstyle
+data.table
+googleAnalyticsR
+bindrcpp
+ggfortify
+zoo
+changepoint
