@@ -1,0 +1,369 @@
+---
+title: "Text mining PHE's blogs"
+output:
+  html_notebook:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  html_document:
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Introduction
+
+## Text is the new data
+
+PHE produces numerous reports, bulletins, and communications, and receives large amounts of feedback. In recent years the ability to analyse text as data has developed rapidly, and there are now tools which can help us gain insight from documents and bodies of texts. These tools allow us to rapidly analyse large numbers of documents. This note applies some of these techniques to analysing Duncan Selbie's Friday Messages.
+
+There are a number of steps:
+
+* Automated downloading all the bulletins (web-scraping)
+* Converting pdf files to text
+* Tidying the data to make it analysable
+* Applying visualisation techniques like word clouds
+* Applying text mining and clustering techniques like topic modelling which can help discover the main themes of the bulletins, and automatically classify them based on these themes.
+
+This analysis is conducted using the statistical package `R` which is rapidly becoming the main tool for undertaking this kind of analysis.
+
+```{r setup, cache=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+```
+
+First we need to load the libraries for the analysis.
+
+```{r load libraries}
+library(knitr)
+suppressPackageStartupMessages(library(rvest))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(httr))
+suppressPackageStartupMessages(library(tm))
+suppressPackageStartupMessages(library(pdftools))
+suppressPackageStartupMessages(library(tidytext))
+suppressPackageStartupMessages(library(ggplot2))
+library(tidyverse)
+
+source("~/themejf.R") ## A standard theme for plots
+```
+
+## Downloading messages - web scraping
+
+Then we need to get the data. This process identifies the URLs of the Public Health Matters blog.
+
+
+```{r Identify URLs, message=FALSE, warning=FALSE, cache=TRUE}
+
+
+## Scraping bulletins
+
+
+
+### This is the main stem of the URLs for Public Health Matters Blogs
+url <- "https://publichealthmatters.blog.gov.uk/category/duncan-selbie-friday-message/"
+
+page <- read_html(url)
+
+urls <- page %>%
+  
+  html_nodes("a") %>%       # find all links
+  
+  html_attr("href")     # get the url
+
+urls <- unique(urls[grepl("friday",urls)])  ## Select those which are friday messages
+url_comment <- urls[stringr::str_detect(urls, "comments$")]
+url_category <- urls[stringr::str_detect(urls, "category")]
+
+urls <- urls[!urls %in% url_comment]
+urls <- urls[!urls %in% url_category]
+
+```
+
+
+
+```{r Extract text and create data frame}
+df <- data.frame()
+for(url in urls){
+
+test1 <- read_html(url) %>% 
+  html_nodes("p")
+
+
+
+test2 <- html_text(test1) %>%
+  str_replace_all("\n", "")
+
+## Remove 1st row
+test2 <- test2[2:length(test2)]
+
+## Extract title
+
+title <- test2[1]
+
+## Extract body text
+
+text <- test2[5:length(test2)]
+
+text <- str_c(text, collapse = "")
+
+## Clean end matter
+
+
+test3 <- gsub("With best wishes.*", "", text )
+
+test4 <- data.frame(test3, title)
+
+df <- bind_rows(df, test4)
+
+}
+
+```
+
+
+## We'll extract the date from the title
+
+```{r}
+
+date <- stringr::str_split(df$title, pattern = "/")
+
+year <- map(date,  4)
+month <- map(date, 5)
+day <- map(date, 6)
+
+date1 <- paste(year, month, day, sep = "-")
+
+df <- cbind(df, date1)
+
+df$date1 <- as.Date(as.character(df$date1))
+
+df <- rename(df, 
+             text = test3)
+
+
+```
+
+
+
+### Removing 'stop words'
+
+Stop words are common English words which occur frequently in all documents and are generally removed for analytical purposes. In addition, there are words common to all bulletins which add little value in analysis - we'll add these to the `stop_words` lexicon.
+
+```{r}
+
+
+bulletin_sw <- data_frame(word = c("phe","friday", "dear", "week", "health", "published", "bulletin", "press", "public", "phe's", "www.gov.uk", "news", "publications", "gateway", "formore"), lexicon = "SMART" )
+
+stop_words1 <- bind_rows(stop_words, bulletin_sw)
+```
+
+
+## Visualisation
+
+### Words per document
+
+We can do some simple analysis.
+
+```{r, fig.height=6, cache=TRUE}
+df %>% 
+  group_by(date1) %>% 
+  unnest_tokens(word, text) %>%
+  count(word, sort = TRUE)%>%
+  summarise(words = sum(n)) %>%
+  ggplot(aes(reorder(date1, words), words)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x="", 
+       y = "Number of words",
+       title = "Number of words per blog") +
+  theme(axis.text.y = element_text(size  = 10))
+```
+
+
+### Simple wordcloud
+
+And wordclouds...
+ 
+```{r, fig.height=8, fig.width=8, cache=TRUE}
+library(wordcloud)
+
+cloud <- df %>% 
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words1) %>%
+  count(word, sort = TRUE)
+
+with(cloud, wordcloud(word, n, max.words = 'INF', scale = c(8, 0.2), 
+                      rot.per = 0.4, random.order = FALSE, 
+                      colors = brewer.pal(8, "Dark2")))
+```
+
+```{r, fig.height=8, fig.width=8}
+library(wordcloud)
+library(tidyr)
+
+pal<- brewer.pal(11,"Spectral")
+
+cloud1 <- df %>% 
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  count(bigram, sort = TRUE)
+
+
+## Split the bigrams back into separate words
+cloud_sep <- cloud1 %>%
+  separate(bigram, c("word1", "word2"), sep = " ") 
+
+
+## and filter out the 'stop words'
+
+cloud_filt <- cloud_sep %>%
+  filter(!word1 %in% stop_words1$word) %>%
+  filter(!word2 %in% stop_words1$word)
+  
+## and recombine
+
+cloud_new <- cloud_filt %>%
+  unite(bigram, word1, word2, sep = " ")
+
+cloud_new 
+## and replot the word cloud  
+with(cloud_new, wordcloud(bigram, n, max.words = Inf, random.order = FALSE, random.color = FALSE, scale = c(8, 0.3), rot.per = .3, colors = pal))
+
+```
+
+
+
+# Analysis by bulletin
+
+We can extend the anlaysis further by looking at the distribution of terms in individual bulletins, and then looking for patterns to see if bulletins can be clustered according to content.
+
+First we can look at a single bulletin:
+
+```{r}
+df%>%
+  sample_n(1) %>%
+  knitr::kable(format = "pandoc")
+```
+
+We can then create a per document per term table known as a Document Term Matrix (DTM). We can count the terms per document.
+
+```{r}
+corp_dtm <- df %>%
+  group_by(date1) %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words1) %>%
+  count(date1, word, sort = TRUE) 
+
+corp_dtm
+```
+
+Next we can create the DTM.
+
+```{r}
+corp_dtm <- corp_dtm %>%
+  cast_dtm(date1, word, n)
+
+corp_dtm
+  
+```
+
+
+## Word associations 
+
+We can see which words tend to appear together in the bulletins.
+
+```{r associations}
+## For example...
+
+### Alcohol
+
+findAssocs(corp_dtm, "alcohol", 0.75)
+
+### Sugar
+
+findAssocs(corp_dtm, "sugar", 0.6)
+```
+
+
+
+And the next step is topic modelling  - this allows us to analyse the whole body of bulletins and look for themes or topics - groupings of words within and between documents.
+
+```{r}
+library(topicmodels)
+
+corp_lda <- LDA(corp_dtm, k = 6, control = list(seed = 1234))
+corp_lda
+
+```
+
+
+```{r}
+corp_lda_tidy <- tidy(corp_lda)
+```
+
+```{r, fig.height=12}
+corp_lda_tidy %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta) %>%
+  ggplot(aes(term, beta, fill = factor(topic), label = term)) +
+  geom_bar(stat = "identity") +
+  geom_text(hjust = 0, size = 10) +
+  coord_flip() +
+  facet_wrap(~topic, ncol =4) +
+  theme_jf() +
+  labs(fill = "Topic")
+  
+  
+```
+
+
+```{r, fig.height=12}
+corp_lda_tidy %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_point(aes(colour = factor(topic))) +
+  geom_line(aes(group = topic)) +
+  coord_polar() +
+  facet_wrap(~topic, ncol = 4) +
+  theme(legend.position = "") +
+  theme(axis.text.x = element_text(size = 12))
+  
+```
+
+### Classifying documents
+
+```{r document classification}
+lda_gamma <- tidytext:::tidy.LDA(corp_lda, matrix = "gamma")
+
+lda_gamma
+
+abs_class <- lda_gamma %>%
+  group_by(document) %>%
+  top_n(1, gamma) %>%
+  ungroup() %>%
+  arrange(gamma)
+
+abs_class
+
+abs_class %>%
+  group_by(topic) %>%
+  count()
+
+abs_class %>%
+  ggplot(aes(lubridate::ymd(document), as.factor(topic), label = document)) +
+  geom_point(aes(colour = topic)) +
+  geom_path(aes(colour = topic))+
+  geom_text(size = 2, angle = 45, hjust = 0, vjust = 0)+
+  coord_cartesian(ylim = c(0, 9)) +
+  labs(y = "Topic number" ) +
+  theme(legend.position = "")
+  
+
+
+```
+
