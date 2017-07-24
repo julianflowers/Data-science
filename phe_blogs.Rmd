@@ -20,15 +20,15 @@ PHE produces numerous reports, bulletins, and communications, and receives large
 There are a number of steps:
 
 * Automated downloading all the bulletins (web-scraping)
-* Converting pdf files to text
+* Extracting and cleaning the bulletin text
 * Tidying the data to make it analysable
 * Applying visualisation techniques like word clouds
 * Applying text mining and clustering techniques like topic modelling which can help discover the main themes of the bulletins, and automatically classify them based on these themes.
 
-This analysis is conducted using the statistical package `R` which is rapidly becoming the main tool for undertaking this kind of analysis.
+This analysis is conducted using the statistical package `R` which is rapidly becoming the main tool for undertaking this kind of work.
 
 ```{r setup, cache=TRUE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
 
 ```
 
@@ -46,13 +46,14 @@ suppressPackageStartupMessages(library(tidytext))
 suppressPackageStartupMessages(library(ggplot2))
 library(tidyverse)
 
-source("~/themejf.R") ## A standard theme for plots
+source("~/themejf.R") ## A standard theme for plots - this should be changed
 ```
 
 ## Downloading messages - web scraping
 
-Then we need to get the data. This process identifies the URLs of the Public Health Matters blog.
+Then we need to get the data. This process identifies the URLs of the Public Health Matters blog. To identify the parts of the html pages the handy [selectorgadget](http://selectorgadget.com) tool is very useful.
 
+The first step is to extract all the relevant URLs.
 
 ```{r Identify URLs, message=FALSE, warning=FALSE, cache=TRUE}
 
@@ -81,6 +82,7 @@ urls <- urls[!urls %in% url_category]
 
 ```
 
+Then read the text and clean the data.
 
 
 ```{r Extract text and create data frame}
@@ -96,6 +98,7 @@ test2 <- html_text(test1) %>%
   str_replace_all("\n", "")
 
 ## Remove 1st row
+
 test2 <- test2[2:length(test2)]
 
 ## Extract title
@@ -108,8 +111,7 @@ text <- test2[5:length(test2)]
 
 text <- str_c(text, collapse = "")
 
-## Clean end matter
-
+## Remove repeated text at the end of each blog
 
 test3 <- gsub("With best wishes.*", "", text )
 
@@ -122,7 +124,7 @@ df <- bind_rows(df, test4)
 ```
 
 
-## We'll extract the date from the title
+We'll extract the date from the title
 
 ```{r}
 
@@ -146,7 +148,9 @@ df <- rename(df,
 
 
 
-### Removing 'stop words'
+### Text processing
+
+##### Removing 'stop words'
 
 Stop words are common English words which occur frequently in all documents and are generally removed for analytical purposes. In addition, there are words common to all bulletins which add little value in analysis - we'll add these to the `stop_words` lexicon.
 
@@ -233,7 +237,7 @@ with(cloud_new, wordcloud(bigram, n, max.words = Inf, random.order = FALSE, rand
 
 
 
-# Analysis by bulletin
+# Analysis by blog
 
 We can extend the anlaysis further by looking at the distribution of terms in individual bulletins, and then looking for patterns to see if bulletins can be clustered according to content.
 
