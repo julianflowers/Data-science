@@ -205,9 +205,7 @@ dat %>%
 
 
 exp2 <- dat %>%
-  mutate(rows = row_number()) 
-
-%>%
+  mutate(rows = row_number()) %>%
   gather(metric, value, scale_worst:scale_pad)
 
 
