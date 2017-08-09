@@ -1,0 +1,101 @@
+---
+title: "Air pollution"
+author: "Julian Flowers"
+date: "24/02/2017"
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Introduction
+
+This short note illustrates three techniques:
+
+* Batch downloads of data from the web using a *web scraping* approach.
+* Organising the data into a tidy data frame.
+* Using the `trelliscopejs` package to create a web page which contains a trend chart of pm25 concentrations for every local authority
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(trelliscopejs)
+library(knitr)
+library(plotly)
+```
+
+## *For* loop to download files for local authorities
+
+DEFRA publish annual concentrations of pollutants for local authorities in the UK. Because the URLs of the each of the annual files have the same pattern we can write a *for loop* which downloads successive files, converts them into a tidy format, stacks the data and stores them in a data frame.
+
+
+We can use the `DT` package to create an interactive table embedded in document which stores the data and is sortable and searchable.
+
+```{r}
+df <- data.frame()
+
+for(year in 2010:2015){
+  
+  
+ap <- read_csv(paste0("https://uk-air.defra.gov.uk/datastore/pcm/popwmpm25", year,"byUKlocalauthority.csv"), skip = 2)
+ap <- ap %>% mutate(year = year) %>% select(-`LA code`)
+ap <- ap %>% tidyr::gather(indicator, value, 1:3)
+df <- bind_rows(df, ap)
+
+}
+
+df <- df %>%
+  janitor::clean_names() %>%
+  arrange(local_authority, indicator, year)
+
+df %>%
+  DT::datatable()
+```
+
+## Count number of values per year
+
+```{r}
+
+df %>%
+  group_by(year) %>%
+  count()
+```
+
+## Create faceted plot
+
+There is a lot going on here:
+
+1. In the second line we group the data by area, year and indicator
+2. We calculate the mean pm25 values
+3. We split the pm25 column into 3 parts
+4. And drop the year (we already have a year column)
+5. Then exclude the total values - just plot the non-anthropogenic and anthropogenic pm25 values
+6. Then create a trend chart of pm25 values over time
+7. Create a chart for each local authority and save as a web page - this uses the `facet_trelliscope` function - be patient it has to create over 400 charts.
+
+
+```{r, lazy = TRUE }
+df %>%
+  group_by(local_authority, year, indicator) %>% 
+  summarise(meanvals = mean(value, na.rm = TRUE)) %>%
+  tidyr::separate(indicator, c("pm", "year1", "type"), sep = " ") %>%
+  select(-year1) %>% 
+  filter(type != "(total)" & year >2010) %>%
+  ggplot(aes(year, meanvals)) + 
+  geom_line(aes(colour = type))+
+  geom_smooth(se = FALSE) +
+  facet_trelliscope(~local_authority, self_contained = TRUE)
+```
+  
+
+
+
+
+
+
