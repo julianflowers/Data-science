@@ -1,0 +1,211 @@
+---
+title: "Smoking test yourself"
+author: "Julian Flowers"
+date: "10/08/2017"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(cache = TRUE, echo = FALSE)
+```
+
+```{r libraries}
+library(shinysense)
+library(fingertipsR)
+library(tidyverse)
+library(stringr)
+
+mydata <- fingertips_data(ProfileID = 19, rank = TRUE, categorytype = TRUE)
+
+
+```
+
+## Test your knowledge of health data in England
+
+- The following slides show trend in some key indicators of health in England
+- The data comes from the Public Health Outcomes Framework
+- The trends are incomplete
+- Using your mouse, draw what you think the trend is
+- The true trend will be revealed
+- How did you do?
+
+
+## Smoking in young people (aged 15)
+
+- Going up or down?
+
+```{r smoking 15,  echo = FALSE}
+library(tidyverse)
+library(stringr)
+library(shinysense)
+
+draw2 <- mydata %>%
+  filter(IndicatorID == 91183) %>%
+  filter(!is.na(Value)) %>% 
+  mutate_if(is.factor, as.character) %>%
+  select(AreaName, TimeperiodSortable, Value)
+
+drawx <- draw2 %>%
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1, 4), "01", "01", sep = "-")))
+
+test_data1 <- drawx %>%
+  filter(AreaName == "England") %>%
+  select(date = date, value = Value)
+
+endDate <- test_data1$date[6]
+
+drawr_widget(
+  data = test_data1,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  width="100%"
+)
+
+```
+
+## Drug deaths
+
+```{r drug deaths}
+draw <- mydata %>%
+  filter(IndicatorID == 92432, AreaName == "England", Sex == "Persons") %>%
+  filter(!is.na(Value), is.na(Category)) %>% 
+  mutate_if(is.factor, as.character) %>%
+  select(AreaName, TimeperiodSortable, Value)
+
+draw1 <- draw %>%
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1, 4), "01", "01", sep = "-")))
+
+
+test_data <- draw1 %>%
+  filter(AreaName == "England") %>%
+  select(date = date, value = Value) 
+
+endDate <- test_data$date[8]
+
+drawr_widget(
+  data = test_data,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  width="100%"
+)
+```
+
+
+## Incidence of TB
+
+```{r incidence of tb}
+draw3 <- mydata %>%
+  filter(IndicatorID == 91361) %>%
+  filter(!is.na(Value), is.na(Category)) %>% 
+  mutate_if(is.factor, as.character) %>%
+  select(AreaName, TimeperiodSortable, Value)
+
+draw4 <- draw3 %>%
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1, 4), "01", "01", sep = "-")))
+
+
+test_data2 <- draw4 %>%
+  filter(AreaName == "England") %>%
+  select(date = date, value = Value)
+
+endDate <- test_data2$date[7]
+
+drawr_widget(
+  data = test_data2,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  width="100%"
+)
+```
+
+
+## Excess winter deaths
+
+```{r winter deaths}
+draw5 <- mydata %>%
+  filter(IndicatorID == 90360) %>%
+  filter(!is.na(Value), is.na(Category), Sex == "Persons") %>% 
+  mutate_if(is.factor, as.character) %>%
+  select(AreaName, TimeperiodSortable, Value)
+
+draw6 <- draw5 %>%
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1,4), "01", "01", sep = "-")))
+
+
+test_data3 <- draw6 %>%
+  filter(AreaName == "England") %>%
+  select(date = date, value = Value)
+
+endDate <- test_data3$date[7]
+
+drawr_widget(
+  data = test_data3,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  width="100%"
+)
+```
+
+
+## New
+
+```{r}
+draw3 <- mydata %>%
+  filter(IndicatorID == 91361) %>%
+  filter(!is.na(Value), is.na(Category)) %>% 
+  mutate_if(is.factor, as.character) %>%
+  select(AreaName, TimeperiodSortable, Value)
+
+draw4 <- draw3 %>%
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1, 4), "01", "01", sep = "-")))
+
+
+test_data2 <- draw4 %>%
+  filter(AreaName == "England") %>%
+  select(date = date, value = Value)
+
+endDate <- test_data2$date[7]
+
+drawr_widget(
+  data = test_data2,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  width="100%"
+)
+```
+
+
+## Incidence of TB
+
+```{r }
+draw3 <- mydata %>%
+  filter(IndicatorID == 91361) %>%
+  filter(!is.na(Value), is.na(Category)) %>% 
+  mutate_if(is.factor, as.character) %>%
+  select(AreaName, TimeperiodSortable, Value)
+
+draw4 <- draw3 %>%
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1, 4), "01", "01", sep = "-")))
+
+
+test_data2 <- draw4 %>%
+  filter(AreaName == "England") %>%
+  select(date = date, value = Value)
+
+endDate <- test_data2$date[7]
+
+drawr_widget(
+  data = test_data2,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  width="100%"
+)
+```
+
+
