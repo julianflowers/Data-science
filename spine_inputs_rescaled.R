@@ -1,143 +1,124 @@
-# IndicatorData is a numerical vector of data for all child areas
 # Polarity is string; one of:
 ## Not applicable
 ## RAG - Low is good
 ## RAG - High is good
 ## BOB - Blue orange blue
+library(tidyverse)
+library(fingertipsR)
+data <- fingertips_data(ProfileID = 26, rank = TRUE) #rank needed so polarity is returned
 
-spine_inputs_rescaled <- function(UniqueIndicatorID, IndicatorData, IndicatorName, 
-                                  Polarity, AreaCode, AreaCodes,
-                                  Significance, IncludeRegion = FALSE) {
-        Polarity <- stringr::str_trim(Polarity)
-        area_val <- IndicatorData[AreaCodes == AreaCode]
-        area_sig <- Significance[AreaCodes == AreaCode]
-        df <- data.frame(UniqueGroup = UniqueIndicatorID,
-                         IndicatorName = IndicatorName,
-                         Polarity = Polarity) %>%
-                mutate(wrst = ifelse(grepl("Low is good",Polarity),
-                                     max(IndicatorData, na.rm = TRUE), 
-                                     min(IndicatorData, na.rm = TRUE)),
-                       bst = ifelse(grepl("Low is good",Polarity),
-                                    min(IndicatorData, na.rm = TRUE), 
-                                    max(IndicatorData, na.rm = TRUE)),
-                       scale_min = ifelse(mean(IndicatorData, na.rm = TRUE) - min(IndicatorData, na.rm = TRUE) > 
-                                                  max(IndicatorData, na.rm = TRUE) - mean(IndicatorData, na.rm = TRUE),
-                                          min(IndicatorData, na.rm = TRUE),
-                                          mean(IndicatorData, na.rm = TRUE) - (max(IndicatorData, na.rm = TRUE) - mean(IndicatorData, na.rm = TRUE))),
-                       scale_max = ifelse(scale_min == min(IndicatorData, na.rm = TRUE),
-                                          mean(IndicatorData, na.rm = TRUE) + (mean(IndicatorData, na.rm = TRUE) - min(IndicatorData, na.rm = TRUE)),
-                                          max(IndicatorData, na.rm = TRUE)),
-                       scale_wrst = ifelse(grepl("Low is good",Polarity),
-                                           scale_min,
-                                           scale_max),
-                       scale_bst = ifelse(grepl("Low is good",Polarity),
-                                          scale_max,
-                                          scale_min),
-                       wrst_grph = ifelse(grepl("Low is good",Polarity),
-                                          (min(IndicatorData, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst),
-                                          (max(IndicatorData, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)),
-                       q25_grph = ifelse(grepl("Low is good",Polarity),
-                                        ((quantile(IndicatorData, probs = 0.25, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)) - wrst_grph,
-                                        ((quantile(IndicatorData, probs = 0.75, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)) - wrst_grph),
-                       q50_grph = 0.5,
-                       q75_grph = ifelse(grepl("Low is good",Polarity),
-                                         ((quantile(IndicatorData, probs = 0.75, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)) - (wrst_grph + q25_grph),
-                                         ((quantile(IndicatorData, probs = 0.25, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)) - (wrst_grph + q25_grph)),
-                       bst_grph = ifelse(grepl("Low is good",Polarity),
-                                         ((max(IndicatorData, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)) - (wrst_grph + q25_grph + q75_grph),
-                                         ((min(IndicatorData, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst)) - (wrst_grph + q25_grph + q75_grph)),
-                       area_grph = (area_val - scale_wrst) / (scale_bst - scale_wrst),
-                       sig_grph = area_sig)
-        if (IncludeRegion == TRUE) {
-                df <- mutate(df,
-                             rgn_grph = (mean(IndicatorData, na.rm = TRUE) - scale_wrst) / (scale_bst - scale_wrst))
-        }
-        return(df)
-}
-
-
-multi_indicator_spine <- function(UniqueIndicatorIDs, IndicatorName, 
-                                  IndicatorData, Polarity, AreaCode, AreaCodes, 
-                                  Significance, IncludeRegion = FALSE) {
-        df <- data.frame()
-        for (UniqueIndicatorID in unique(UniqueIndicatorIDs)) {
-                IndicatorNameLoop <- unique(IndicatorName[UniqueIndicatorIDs == UniqueIndicatorID])
-                PolarityLoop <- unique(Polarity[UniqueIndicatorIDs == UniqueIndicatorID])
-                IndicatorDataLoop <- IndicatorData[UniqueIndicatorIDs == UniqueIndicatorID]
-                AreaCodesLoop <- AreaCodes[UniqueIndicatorIDs == UniqueIndicatorID]
-                SignificanceLoop <- as.character(Significance[UniqueIndicatorIDs == UniqueIndicatorID])
-                df <- rbind(spine_inputs_rescaled(UniqueIndicatorID, IndicatorDataLoop, IndicatorNameLoop, 
-                                                  PolarityLoop, AreaCode, AreaCodesLoop,
-                                                  SignificanceLoop, IncludeRegion),
-                            df)
-        }
-        df <- filter(df, complete.cases(df)) %>%
-                select(matches("^UniqueGroup|^IndicatorName|grph$")) %>%
-                gather(GraphPoint, Value, -(UniqueGroup:IndicatorName))
-        df$GraphPoint <- factor(df$GraphPoint,
-                                levels = c("bst_grph","q75_grph",
-                                           "q25_grph","wrst_grph","area_grph",
-                                           "rgn_grph","q50_grph","sig_grph"))
-        return(df)
-}
-
-data <- fingertips_data(ProfileID = 26)
-InputData <- filter(data, 
-                    AreaType == "County & UA") %>%
-        group_by(IndicatorID) %>%
+testdata <- data %>%
+        group_by(IndicatorID, CategoryType, Sex, Age) %>%
         filter(TimeperiodSortable == max(TimeperiodSortable)) %>%
-        ungroup()
-gps <- InputData %>% 
-        group_by(IndicatorID, Sex, Age, Category, CategoryType) %>%
-        group_indices()
-InputData <- InputData %>%
-        mutate(group = gps) %>%
-        ungroup()
+        { mutate(ungroup(.), group = group_indices(.)) } %>% #copied from GitHub
+        ungroup() 
+
+areacode <- "E06000016"
+parentcode <- unique(as.character(testdata[testdata$AreaCode == areacode, "ParentCode"]$ParentCode))
+
+create_point_data <- function(df, areacode){
+        if (substr(areacode,1,3) == "E12"){
+                df <- df %>%
+                        filter(AreaCode == areacode) %>%
+                        select(group, Value) %>%
+                        rename(regionalvalue = Value)
+        } else {
+                df <- df %>%
+                        filter(AreaCode == areacode) %>%
+                        select(group, ComparedtoEnglandvalueorpercentiles, 
+                               Polarity, Value) %>%
+                        rename(areavalue = Value,
+                               Significance = ComparedtoEnglandvalueorpercentiles)
+        }
+        df <- data.frame(df) %>%
+                column_to_rownames(var="group")
+}
+parentdata <- create_point_data(testdata, parentcode)
+areadata <- create_point_data(testdata, areacode)
+testdata <- filter(testdata, AreaType == "County & UA")
+
+quantiles <- testdata %>%
+        split(.$group) %>%
+        map("Value") %>%
+        map_df(quantile, na.rm = TRUE) %>%
+        t() %>%
+        data.frame()
+mean <- testdata %>%
+        split(.$group) %>%
+        map("Value") %>%
+        map_dbl(mean, na.rm = TRUE)
+names(quantiles) <- c(paste0("Q",100*seq(0,1,by=0.25)))
+names(quantiles)[3] <- "mean"
+quantiles$mean <- mean
+
+scaled_spine_inputs <- function(group, Q0, Q25, mean, Q75, Q100, Significance, Polarity, areavalue, regionalvalue) {
+        Polarity <- stringr::str_trim(Polarity)
+        quantiles <- structure(as.numeric(c(Q0, Q25, mean, Q75, Q100)),
+                               names = c("0%", "25%", "mean", "75%", "100%"))
+        areavalue <- as.numeric(areavalue)
+        regionalvalue <- as.numeric(regionalvalue)
+        if (grepl("Low is good",Polarity)) {
+                quantiles <- rev(quantiles)
+        }
+        scale_min <- ifelse(quantiles["mean"] - quantiles["0%"] > 
+                                    quantiles["100%"] - quantiles["mean"],
+                            quantiles["0%"],
+                            quantiles["mean"] - (quantiles["100%"] - quantiles["mean"]))
+        scale_max <- ifelse(scale_min == quantiles["0%"],
+                            quantiles["mean"] + (quantiles["mean"] - quantiles["0%"]),
+                            quantiles["100%"])
         
-polarity <- indicator_metadata(unique(InputData$IndicatorID)) %>%
-        select(IndicatorID, Polarity)
+        rescale <- function(val){
+                rescale <- (val - scale_min) / (scale_max - scale_min)
+                return(rescale)
+        }
+        quantiles <- rescale(quantiles[names(quantiles) != "mean"])
+        if (grepl("Low is good",Polarity)) {
+                quantiles <- 1 - quantiles
+                quantiles <- diff(c(0,quantiles))
+        } else {
+                quantiles <- diff(c(0,quantiles))
+        }
+        pointdata <- rescale(c(areavalue,regionalvalue))
+        names(pointdata) <- c("area","region")
+        graphpoints <- c("Worst","Q25","Q75","Best")
+        scaled_spine_inputs <- list(bars = data.frame(group = group, 
+                                                      quantiles = quantiles,
+                                                      GraphPoint = factor(graphpoints, levels = rev(graphpoints))),
+                                    points = data.frame(group = group, significance = Significance, area = pointdata[1], region = pointdata[2]))
+}
 
-InputData <- left_join(InputData, polarity, by = c("IndicatorID" = "IndicatorID"))
+dfgraph <- merge(quantiles, areadata, by = 0, all.x = TRUE) %>%
+        column_to_rownames(var="Row.names") %>%
+        merge(parentdata, by = 0, all.x =TRUE) %>%
+        rename(group = Row.names) %>%
+        lapply(map, .f = as.character) %>%
+        pmap(scaled_spine_inputs)
+dfgraphfinal <- list(bars = suppressWarnings(map_df(dfgraph, "bars")),
+                points = suppressWarnings(map_df(dfgraph, "points")))
 
-dfgraph <- multi_indicator_spine(InputData$group,InputData$IndicatorName, InputData$Value, 
-                                 InputData$Polarity, "E06000022", InputData$AreaCode, 
-                                 InputData$ComparedtoEnglandvalueorpercentiles,
-                                 IncludeRegion = TRUE) %>%
-        mutate(IndicatorName = paste0(stringr::str_trunc(as.character(IndicatorName), width = 20, "right"),
-                                      " (",UniqueGroup,")"))
+cols <- c("Worst" = "white", "Q25" = "lightgrey", "Q75" = "darkgrey",
+          "Best" = "lightgrey")
 
-dfgrapharea <- dfgraph[dfgraph$GraphPoint %in% c("area_grph","sig_grph"),] %>%
-        spread(GraphPoint,Value) %>%
-        mutate(area_grph = as.numeric(area_grph),
-               sig_grph = factor(sig_grph, levels = c("Better","Same","Worse","Not compared")))
-other_inds <- c("area_grph","rgn_grph","q50_grph","sig_grph")
-dfgraphbars <- dfgraph[!(dfgraph$GraphPoint %in% other_inds),] %>%
-        mutate(Value = as.numeric(Value)) %>%
-        droplevels()
-
-cols <- c("wrst_grph" = "white", "q25_grph" = "lightgrey", "q75_grph" = "darkgrey",
-          "bst_grph" = "lightgrey")
-
-pointcols <- data.frame(category = c("Better","Same","Worse","Not compared"),
-                   r = c(146, 255, 192, 166),
-                   g = c(208, 192, 0, 166),
-                   b = c(80, 0, 0, 166)) %>%
+pointcols <- data.frame(category = c("Better","Same","Worse","Not compared","Higher", "Similar", "Lower"),
+                        r = c(146, 255, 192, 166, 190, 255, 85),
+                        g = c(208, 192, 0, 166, 210, 192, 85),
+                        b = c(80, 0, 0, 166, 255, 0, 230)) %>%
         mutate(hex = rgb(r,g,b, maxColorValue = 255))
 pointcols <- structure(pointcols$hex,
-                  names = as.character(pointcols$category))
-
-other_inds <- c("area_grph","rgn_grph","q50_grph","sig_grph")
-ggplot(dfgraphbars, 
-       aes(x = IndicatorName, y = Value)) +
+                       names = as.character(pointcols$category))
+cols <- c(cols,pointcols)
+ggplot(dfgraphfinal$bars, 
+       aes(x = group, y = quantiles)) +
         geom_bar(stat = "identity", aes(fill = GraphPoint)) +
-        geom_point(data = dfgrapharea,
-                   aes(x = IndicatorName, y = area_grph, col = sig_grph)) +
+        geom_point(data = dfgraphfinal$points,
+                   aes(x = group, y = region), shape = 23, fill = "white") +
+        geom_point(data = dfgraphfinal$points,
+                   aes(x = group, y = area, fill = significance), 
+                   shape = 21, colour = "black") +
         geom_hline(yintercept = 0.5, col = "darkred") +
         coord_flip() +
         scale_fill_manual(values = cols) +
-        scale_colour_manual(name = "",
-                            values=pointcols,
-                            breaks = names(pointcols)) +
         theme_minimal() +
         labs(x = "", y = "") +
         theme(axis.text.x = element_blank(),
