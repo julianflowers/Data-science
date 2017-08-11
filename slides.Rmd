@@ -1,0 +1,53 @@
+---
+title: "Untitled"
+author: "Julian Flowers"
+date: "11/08/2017"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(collapsibleTree)
+library(readxl)
+library(tidyverse)
+```
+
+## Work programme
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(RColorBrewer)
+
+phds_wp <- readxl::read_xlsx("work_area.xlsx")
+
+
+catcolors <- brewer.pal(length(unique(phds_wp$Category)), "Reds")
+
+typeColors <- phds_wp %>%
+  arrange(Category, Programme) %>% 
+  group_by(Category) %>%
+  distinct(Programme) %>%
+  mutate(colors = colorspace::sequential_hcl(length(Programme))[seq_along(Programme)])
+
+workcols <- phds_wp %>%
+  arrange(Category, Programme, `Work area`) %>% 
+  group_by(Category) %>%
+  distinct(`Work area`) %>%
+  mutate(colors = colorspace::heat_hcl(length(`Work area`))[seq_along(`Work area`)])
+
+phds_wp %>%
+  arrange(Category, Programme, `Work area`) %>% 
+  collapsibleTree( 
+                hierarchy = c("Category", "Programme", "Work area"),
+                root = "PHDS", 
+                tooltip = TRUE, 
+                fill = c("white",
+                         catcolors,
+                         typeColors$colors, 
+                         workcols$colors
+                        
+                ))
+
+
+
+```
+
