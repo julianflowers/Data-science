@@ -9,7 +9,7 @@ output: slidy_presentation
 knitr::opts_chunk$set(cache = TRUE, echo = FALSE)
 ```
 
-```{r libraries}
+```{r libraries, cache=TRUE}
 library(shinysense)
 library(fingertipsR)
 library(tidyverse)
@@ -66,7 +66,7 @@ drawr_widget(
 
 ## Drug deaths
 
-```{r drug deaths}
+```{r drug deaths, echo=FALSE}
 draw <- mydata %>%
   filter(IndicatorID == 92432, AreaName == "England", Sex == "Persons") %>%
   filter(!is.na(Value), is.na(Category)) %>% 
@@ -95,7 +95,7 @@ drawr_widget(
 
 ## Incidence of TB
 
-```{r incidence of tb}
+```{r incidence of tb, echo=FALSE}
 draw3 <- mydata %>%
   filter(IndicatorID == 91361) %>%
   filter(!is.na(Value), is.na(Category)) %>% 
@@ -124,7 +124,7 @@ drawr_widget(
 
 ## Excess winter deaths
 
-```{r winter deaths}
+```{r winter deaths, echo=FALSE}
 draw5 <- mydata %>%
   filter(IndicatorID == 90360) %>%
   filter(!is.na(Value), is.na(Category), Sex == "Persons") %>% 
@@ -153,7 +153,7 @@ drawr_widget(
 
 ## New
 
-```{r}
+```{r echo=FALSE}
 draw3 <- mydata %>%
   filter(IndicatorID == 91361) %>%
   filter(!is.na(Value), is.na(Category)) %>% 
@@ -182,7 +182,7 @@ drawr_widget(
 
 ## Incidence of TB
 
-```{r }
+```{r echo=FALSE}
 draw3 <- mydata %>%
   filter(IndicatorID == 91361) %>%
   filter(!is.na(Value), is.na(Category)) %>% 
