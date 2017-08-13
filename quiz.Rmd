@@ -1,0 +1,179 @@
+---
+title: "Test yourself health data trends"
+author: "Julian Flowers"
+date: "10/08/2017"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(cache = TRUE, echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries, cache=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+library(shinysense)
+library(fingertipsR)
+library(tidyverse)
+library(stringr)
+
+indids <- c(91183, 92432, 91361, 90360, 92196, 40601, 20401, 11202) ## select ids
+
+mydata <- fingertips_data(IndicatorID = indids) ## download data
+
+dataset <- filter(mydata, AreaName == "England") %>% 
+  mutate(date = as.Date(paste(str_sub(TimeperiodSortable, 1, 4), "01", "01", sep = "-"))) %>%
+  mutate_if(is.factor, as.character) %>%
+  select(IndicatorID, date, Value, Sex, AreaName, IndicatorName)
+
+
+```
+
+
+```{r echo = FALSE}
+
+## Function to draw charts
+draw_chart <- function(df, i = 6){  
+  
+  ## i = start point ie number of points already drawn
+  
+  endDate <- df$date[i]
+  
+  drawr_widget(
+  data = df,
+  draw_start = endDate,
+  x_key = "date",
+  y_key = "value",
+  y_min = min(df$value) * .9,
+  y_max = 1.1 *max(df$value),
+  width="100%"
+  )
+}
+```
+
+## Test your knowledge of health data in England
+
+- Take the quiz [here](http://rpubs.com/jflowers/299049).
+- The following slides shows the trend in some key indicators of health in England
+- The data comes from the Public Health Outcomes Framework
+- The chart are incomplete
+- Using your mouse, draw where *you* think the trend is
+- The true trend will be revealed when you get to the end
+- How did you do?
+
+
+## `r dataset %>% filter(IndicatorID == 91183) %>% select(IndicatorName) %>% distinct()`
+
+
+```{r smoking 15,  echo = FALSE}
+library(tidyverse)
+library(stringr)
+library(shinysense)
+
+id <- 91183
+
+draw <- dataset %>%
+  filter(IndicatorID == id, Sex == "Persons") %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+
+```
+
+## `r dataset %>% filter(IndicatorID == 92432) %>% select(IndicatorName) %>% distinct()`
+
+```{r drug deaths, echo=FALSE}
+
+
+id <- 92432
+
+draw <- dataset %>%
+  filter(IndicatorID == id, Sex == "Persons") %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+```
+
+
+## `r dataset %>% filter(IndicatorID == 91361) %>% select(IndicatorName) %>% distinct()`
+
+```{r incidence of tb, echo=FALSE}
+
+id <- 91361
+
+draw <- dataset %>%
+  filter(IndicatorID == id, Sex == "Persons") %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+
+
+
+```
+
+
+## `r dataset %>% filter(IndicatorID == 90360) %>% select(IndicatorName) %>% distinct()`
+
+```{r winter deaths, echo=FALSE}
+
+id <- 90360
+
+draw <- dataset %>%
+  filter(IndicatorID == id, Sex == "Persons") %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+```
+
+
+## `r dataset %>% filter(IndicatorID == 92196) %>% select(IndicatorName) %>% distinct()`
+
+```{r echo=FALSE}
+
+
+id <- 92196
+
+draw <- dataset %>%
+  filter(IndicatorID == id, Sex == "Persons") %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+```
+
+
+## `r dataset %>% filter(IndicatorID == 40601) %>% select(IndicatorName) %>% distinct()`
+
+```{r echo=FALSE}
+
+id <- 40601
+
+draw <- dataset %>%
+  filter(IndicatorID == id, Sex == "Persons") %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+```
+
+## `r dataset %>% filter(IndicatorID == 20401) %>% select(IndicatorName) %>% distinct()`
+
+```{r echo=FALSE}
+
+id <- 20401
+
+draw <- dataset %>%
+  filter(IndicatorID == id) %>%
+  select(date, value = Value)
+
+draw_chart(draw)
+```
+
+## `r dataset %>% filter(IndicatorID == 11202) %>% select(IndicatorName) %>% distinct()`
+
+```{r echo=FALSE}
+
+id <- 11202
+
+draw <- dataset %>%
+  filter(IndicatorID == id) %>%
+  select(date, value = Value)
+
+draw_chart(draw, 3)
+```
