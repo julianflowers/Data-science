@@ -7,6 +7,7 @@ output:
     toc_float: yes
   html_document:
     toc: yes
+    toc_float: yes
 editor_options: 
   chunk_output_type: inline
 ---
@@ -28,7 +29,7 @@ There are a number of steps:
 This analysis is conducted using the statistical package `R` which is rapidly becoming the main tool for undertaking this kind of work.
 
 ```{r setup, cache=TRUE}
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning = FALSE, message = FALSE)
 
 ```
 
@@ -45,6 +46,7 @@ suppressPackageStartupMessages(library(pdftools))
 suppressPackageStartupMessages(library(tidytext))
 suppressPackageStartupMessages(library(ggplot2))
 library(tidyverse)
+library(govstyle)
 
 source("~/themejf.R") ## A standard theme for plots - this should be changed
 ```
@@ -80,14 +82,50 @@ url_category <- urls[stringr::str_detect(urls, "category")]
 urls <- urls[!urls %in% url_comment]
 urls <- urls[!urls %in% url_category]
 
+url1 <- "https://publichealthmatters.blog.gov.uk/category/duncan-selbie-friday-message/page/2/"
+
+page1 <- read_html(url1)
+
+urls1 <- page1 %>%
+  
+  html_nodes("a") %>%       # find all links
+  
+  html_attr("href")     # get the url
+
+urls1 <- unique(urls1[grepl("friday",urls1)])  ## Select those which are friday messages
+url_comment1 <- urls1[stringr::str_detect(urls1, "comments$")]
+url_category1 <- urls1[stringr::str_detect(urls1, "category")]
+
+urls1 <- urls1[!urls1 %in% url_comment1]
+urls1 <- urls1[!urls1 %in% url_category1]
+
+url2 <- "https://publichealthmatters.blog.gov.uk/category/duncan-selbie-friday-message/page/3/"
+
+page2 <- read_html(url2)
+
+urls2 <- page2 %>%
+  
+  html_nodes("a") %>%       # find all links
+  
+  html_attr("href")     # get the url
+
+urls2 <- unique(urls2[grepl("friday",urls2)])  ## Select those which are friday messages
+url_comment2 <- urls2[stringr::str_detect(urls2, "comments$")]
+url_category2 <- urls2[stringr::str_detect(urls2, "category")]
+
+urls2 <- urls2[!urls2 %in% url_comment2]
+urls2 <- urls2[!urls2 %in% url_category2]
+
+urls_all <- c(urls, urls1, urls2)
+
 ```
 
 Then read the text and clean the data.
 
 
-```{r Extract text and create data frame}
+```{r Extract text and create data frame, echo=FALSE, message=FALSE, warning=FALSE}
 df <- data.frame()
-for(url in urls){
+for(url in urls_all){
 
 test1 <- read_html(url) %>% 
   html_nodes("p")
@@ -120,6 +158,8 @@ test4 <- data.frame(test3, title)
 df <- bind_rows(df, test4)
 
 }
+
+
 
 ```
 
@@ -169,14 +209,15 @@ stop_words1 <- bind_rows(stop_words, bulletin_sw)
 
 We can do some simple analysis.
 
-```{r, fig.height=6, cache=TRUE}
+```{r echo=FALSE, fig.height=6, cache=TRUE}
 df %>% 
   group_by(date1) %>% 
   unnest_tokens(word, text) %>%
   count(word, sort = TRUE)%>%
   summarise(words = sum(n)) %>%
   ggplot(aes(reorder(date1, words), words)) +
-  geom_bar(stat = "identity") +
+  geom_col(fill = "blue") +
+  theme_gov() +
   coord_flip() +
   labs(x="", 
        y = "Number of words",
@@ -189,7 +230,7 @@ df %>%
 
 And wordclouds...
  
-```{r, fig.height=8, fig.width=8, cache=TRUE}
+```{r echo=FALSE, fig.height=6, fig.width=6, cache=TRUE}
 library(wordcloud)
 
 cloud <- df %>% 
@@ -202,11 +243,10 @@ with(cloud, wordcloud(word, n, max.words = 'INF', scale = c(8, 0.2),
                       colors = brewer.pal(8, "Dark2")))
 ```
 
-```{r, fig.height=8, fig.width=8}
-library(wordcloud)
+```{r echo=FALSE, fig.height=8, fig.width=8}
+library(wordcloud2)
 library(tidyr)
 
-pal<- brewer.pal(11,"Spectral")
 
 cloud1 <- df %>% 
   unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
@@ -229,13 +269,14 @@ cloud_filt <- cloud_sep %>%
 cloud_new <- cloud_filt %>%
   unite(bigram, word1, word2, sep = " ")
 
-cloud_new 
-## and replot the word cloud  
-with(cloud_new, wordcloud(bigram, n, max.words = Inf, random.order = FALSE, random.color = FALSE, scale = c(8, 0.3), rot.per = .3, colors = pal))
+## and replot the word cloud 
+
+
+wordcloud2(cloud_new, size = 0.6)
 
 ```
 
-
+This shows the main topics or themes of the messages. "Local authorities" is the most commonly mentioned topic, with "suicide prevention", "bowel cancer" and "blood pressure" amongst other common themes.
 
 # Analysis by blog
 
@@ -251,23 +292,23 @@ df%>%
 
 We can then create a per document per term table known as a Document Term Matrix (DTM). We can count the terms per document.
 
-```{r}
+```{r echo=FALSE}
 corp_dtm <- df %>%
   group_by(date1) %>%
   unnest_tokens(word, text) %>%
   anti_join(stop_words1) %>%
   count(date1, word, sort = TRUE) 
 
-corp_dtm
+
 ```
 
 Next we can create the DTM.
 
-```{r}
+```{r include=FALSE}
 corp_dtm <- corp_dtm %>%
   cast_dtm(date1, word, n)
 
-corp_dtm
+
   
 ```
 
@@ -281,22 +322,22 @@ We can see which words tend to appear together in the bulletins.
 
 ### Alcohol
 
-findAssocs(corp_dtm, "alcohol", 0.75)
+findAssocs(corp_dtm, "alcohol", 0.8)
 
 ### Sugar
 
-findAssocs(corp_dtm, "sugar", 0.6)
+findAssocs(corp_dtm, "sugar", 0.7)
 ```
 
 
 
 And the next step is topic modelling  - this allows us to analyse the whole body of bulletins and look for themes or topics - groupings of words within and between documents.
 
-```{r}
+```{r include=FALSE}
 library(topicmodels)
 
 corp_lda <- LDA(corp_dtm, k = 6, control = list(seed = 1234))
-corp_lda
+
 
 ```
 
@@ -307,12 +348,13 @@ corp_lda_tidy <- tidy(corp_lda)
 
 ```{r, fig.height=12}
 corp_lda_tidy %>%
+  mutate(row = row_number()) %>%
   group_by(topic) %>%
   top_n(20, beta) %>%
   ungroup() %>%
   arrange(topic, -beta) %>%
-  ggplot(aes(term, beta, fill = factor(topic), label = term)) +
-  geom_bar(stat = "identity") +
+  ggplot(aes(reorder(term, row), beta, fill = factor(topic), label = term)) +
+  geom_col() +
   geom_text(hjust = 0, size = 10) +
   coord_flip() +
   facet_wrap(~topic, ncol =4) +
