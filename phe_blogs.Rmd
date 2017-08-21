@@ -337,49 +337,34 @@ And the next step is topic modelling  - this allows us to analyse the whole body
 library(topicmodels)
 
 corp_lda <- LDA(corp_dtm, k = 6, control = list(seed = 1234))
-
-
-```
-
-
-```{r}
 corp_lda_tidy <- tidy(corp_lda)
+
 ```
 
 ```{r, fig.height=12}
-corp_lda_tidy %>%
-  mutate(row = row_number()) %>%
-  group_by(topic) %>%
-  top_n(20, beta) %>%
-  ungroup() %>%
-  arrange(topic, -beta) %>%
-  ggplot(aes(reorder(term, row), beta, fill = factor(topic), label = term)) +
-  geom_col() +
+corp_topterms <- corp_lda_tidy %>%
+    group_by(topic) %>%
+  top_n(15, beta) %>% 
+  ungroup() %>% 
+  arrange(topic, -beta)
+  
+  
+corp_topterms %>%  
+  mutate(term = reorder(term, beta)) %>%
+  mutate(order = row_number()) %>% 
+  ggplot(aes(rev(order),   beta, fill = factor(topic), label = term)) +
+  geom_col(show.legend = FALSE) +
   geom_text(hjust = 0, size = 10) +
   coord_flip() +
-  facet_wrap(~topic, ncol =4) +
-  theme_jf() +
-  labs(fill = "Topic")
+  facet_wrap(~topic, ncol =2, scales = "free") +
+  theme_gov() +
+  labs(fill = "Topic", 
+       y = "term") 
+  
   
   
 ```
 
-
-```{r, fig.height=12}
-corp_lda_tidy %>%
-  group_by(topic) %>%
-  top_n(20, beta) %>%
-  ungroup() %>%
-  arrange(topic, -beta) %>%
-  ggplot(aes(term, beta, fill = factor(topic))) +
-  geom_point(aes(colour = factor(topic))) +
-  geom_line(aes(group = topic)) +
-  coord_polar() +
-  facet_wrap(~topic, ncol = 4) +
-  theme(legend.position = "") +
-  theme(axis.text.x = element_text(size = 12))
-  
-```
 
 ### Classifying documents
 
@@ -406,7 +391,8 @@ abs_class %>%
   geom_path(aes(colour = topic))+
   geom_text(size = 2, angle = 45, hjust = 0, vjust = 0)+
   coord_cartesian(ylim = c(0, 9)) +
-  labs(y = "Topic number" ) +
+  labs(y = "Topic", 
+       x = "Date") +
   theme(legend.position = "")
   
 
