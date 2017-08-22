@@ -1,14 +1,15 @@
 library(tidyverse)
 library(fingertipsR)
+library(stringr)
 
 # This is how you use it:
 # AreaCode is the area you want the chart plotted for and "..." is are the parameters you
 # would pass to fingertips_data, eg:
 # inds <- c(10101, 92949)
-# p <- spine_chart("E06000016", IndicatorID = inds, DisplayIndicatorName = TRUE)
+# p <- spine_chart("E06000016", IndicatorID = inds, show.datatable = TRUE)
 # p$plot is the ggplot
 # p$table is the data table
-spine_chart <- function(data, AreaCode, DisplayIndicatorName = FALSE, ...) {
+spine_chart <- function(data, AreaCode, show.datatable = FALSE, ...) {
 
         preprocessed <- pre_process(data, AreaCode, ...)
         data <- preprocessed$data
@@ -84,11 +85,13 @@ spine_chart <- function(data, AreaCode, DisplayIndicatorName = FALSE, ...) {
                 
                 graphpoints <- c("Worst","Q25","Q75","Best")
                 scaled_spine_inputs <- list(bars = data.frame(group = group,
-                                                              IndicatorName = paste0(IndicatorName, " (", group,")"),
+                                                              #IndicatorName = paste0(IndicatorName, " (", group,")"), 
+                                                              IndicatorName = IndicatorName, 
                                                               quantiles = quantiles,
                                                               GraphPoint = factor(graphpoints, levels = rev(graphpoints))),
                                             points = data.frame(group = group,
-                                                                IndicatorName = paste0(IndicatorName, " (", group,")"), 
+                                                                #IndicatorName = paste0(IndicatorName, " (", group,")"), 
+                                                                IndicatorName = IndicatorName, 
                                                                 significance = Significance, 
                                                                 area = pointdata[1], 
                                                                 region = pointdata[2]))
@@ -105,6 +108,35 @@ spine_chart <- function(data, AreaCode, DisplayIndicatorName = FALSE, ...) {
                 pmap(scaled_spine_inputs)
         dfgraphfinal <- list(bars = suppressWarnings(map_df(dfgraph, "bars")),
                              points = suppressWarnings(map_df(dfgraph, "points")))
+        polarity <- select(areadata, Polarity) %>%
+                rownames_to_column(var = "group")
+        dfannotate <- rownames_to_column(quantiles, var = "group") %>%
+                left_join(polarity, by = c("group" = "group")) %>%
+                mutate(reverse = ifelse(grepl("Low is good",Polarity)|grepl("^BOB",Polarity),TRUE,FALSE),
+                       Worst = ifelse(reverse == TRUE,Q100,Q0),
+                       Best = ifelse(reverse == TRUE, Q0, Q100)) %>%
+                select(group, Best, Worst) %>%
+                gather(GraphPoint, label, Best:Worst) %>%
+                mutate(y = ifelse(GraphPoint == "Best", 1.05, -0.05),
+                       label = round(label,1),
+                       GraphPoint = factor(GraphPoint, levels = c("Best","Q75","Q25","Worst")))
+        
+        timeperiod <- unique(data[,c("group","Timeperiod")]) %>%
+                mutate(group = as.character(group))
+        areadata <- rownames_to_column(areadata, var = "group") %>%
+                select(group, areavalue)
+        parentdata <- rownames_to_column(parentdata, var = "group")
+        mean <- rownames_to_column(mean, var = "group") %>%
+                rename(England = regionalvalue)
+        
+        dfannotatepoints <- left_join(parentdata, mean, by = c("group" = "group")) %>%
+                left_join(areadata, by = c("group" = "group")) %>%
+                left_join(timeperiod, by = c("group" = "group")) %>%
+                mutate(England = round(England,1),
+                       regionalvalue = round(regionalvalue,1),
+                       areavalue = round(areavalue,1))
+                
+        
         dfgraphfinal$bars$IndicatorName <- factor(dfgraphfinal$bars$IndicatorName, 
                                                   levels = sort(unique(dfgraphfinal$bars$IndicatorName), decreasing = TRUE))
         dfgraphfinal$points$IndicatorName <- factor(dfgraphfinal$points$IndicatorName, 
@@ -119,6 +151,8 @@ spine_chart <- function(data, AreaCode, DisplayIndicatorName = FALSE, ...) {
                 mutate(hex = rgb(r,g,b, maxColorValue = 255))
         cols <- structure(cols$hex,
                                names = as.character(cols$category))
+        dfgraphfinal$bars <- left_join(dfgraphfinal$bars, dfannotate, by = c("group" = "group", "GraphPoint" = "GraphPoint"))
+        dfgraphfinal$points <- left_join(dfgraphfinal$points, dfannotatepoints, by = c("group" = "group"))
         p <- ggplot(dfgraphfinal$bars, 
                                    aes(x = IndicatorName, y = quantiles)) +
                 geom_bar(stat = "identity", aes(fill = GraphPoint)) +
@@ -131,16 +165,42 @@ spine_chart <- function(data, AreaCode, DisplayIndicatorName = FALSE, ...) {
                 coord_flip() +
                 scale_fill_manual(values = cols) +
                 theme_minimal() +
+                theme() +
                 labs(x = "", y = "")
-        if (DisplayIndicatorName == TRUE) {
+        if (show.datatable == TRUE) {
                 p <- p +
-                        theme(axis.text.x = element_blank(),
+                        scale_y_continuous(position = "top",
+                                           breaks = c(-.53, -.35, -.25, -.15, -0.05,1.05),
+                                           labels = c("Time\nperiod","Area\nvalue","Regional\nvalue","England\nvalue","Worst/\nLowest","Best/\nHighest")) +
+                        expand_limits(y = c(-0.63,1.1)) +
+                        geom_text(aes(label = label, y = y), 
+                                  col = "#333333",
+                                  size = 2.5) + 
+                        geom_text(data = dfgraphfinal$points,
+                                  aes(label = England), 
+                                  y = -0.15, col = "#333333",
+                                  size = 2.5) + 
+                        geom_text(data = dfgraphfinal$points,
+                                  aes(label = regionalvalue), 
+                                  y = -0.25, col = "#333333",
+                                  size = 2.5) + 
+                        geom_text(data = dfgraphfinal$points,
+                                  aes(label = areavalue), 
+                                  y = -0.35, col = "#333333",
+                                  size = 2.5) + 
+                        geom_text(data = dfgraphfinal$points,
+                                  aes(label = Timeperiod), 
+                                  y = -0.53, col = "#333333",
+                                  size = 2.5) + 
+                        theme(axis.text.x = element_text(size = rel(0.85)),
+                              axis.text.y = element_text(size = rel(0.65),
+                                                         hjust = 0),
                               panel.grid.major = element_blank(), 
                               panel.grid.minor = element_blank(),
                               legend.position = "none")
         } else {
                 p <- p +
-                        theme(axis.text.x = element_blank(),
+                        theme(#axis.text.x = element_blank(),
                               axis.text.y = element_blank(),
                               panel.grid.major = element_blank(), 
                               panel.grid.minor = element_blank(),
@@ -195,9 +255,16 @@ pre_process <- function(data, AreaCode, ...) {
                 filter(TimeperiodSortable == max(TimeperiodSortable)) %>%
                 { mutate(ungroup(.), group = group_indices(.)) } %>% #copied from GitHub
                 ungroup()
-        ind_names <- select(data, group, IndicatorName) %>%
+        ind_names <- select(data, group, IndicatorName, Sex, Age) %>%
                 unique() %>%
-                mutate(IndicatorName = abbreviate(IndicatorName, 25))
+                #mutate(IndicatorName = abbreviate(IndicatorName, 25))
+                mutate(IndicatorName = str_trunc(as.character(IndicatorName),100),
+                       IndicatorName = case_when((Age != "Not applicable" & Sex != "Not applicable") ~ paste0(IndicatorName, " (",Sex," ",Age,")"),
+                                                 (Age == "Not applicable" & Sex != "Not applicable") ~ paste0(IndicatorName, " (",Sex,")"),
+                                                 (Age != "Not applicable" & Sex == "Not applicable") ~ paste0(IndicatorName, " (",Age,")"),
+                                                 (Age == "Not applicable" & Sex == "Not applicable") ~ IndicatorName),
+                       IndicatorName = str_wrap(IndicatorName,70)) %>%
+                select(group, IndicatorName)
         parentcode <- unique(as.character(data[data$AreaCode == AreaCode, "ParentCode"]$ParentCode))
         pre_process <- list(data = data, 
                             ind_names = ind_names,
