@@ -1,8 +1,12 @@
 ### Full production version of script to download gp in hours weekly bulletins
+library(rvest)
+library(downloader)
+library(readxl)
+library(tidyverse)
 
-## Create directory to receive downloads           
 
-setwd("~")
+## Create directory to receive downloads 
+
 
 if(!dir.exists("gp_data")) dir.create("gp_data")
 
