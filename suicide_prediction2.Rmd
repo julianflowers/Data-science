@@ -344,11 +344,12 @@ plot(modvimp)
 
 ## Discussion
 
-When people think of machine learning they often think of 'big data', but altough our data is not big in terms of size it is often complex and multivariate, and machine learning tools can equally well be applied to these datasets. In this example we have applied a machine learning pipeline to the suicide prevention profile which shows that although none of the models are very highly predictive, and glmnet produces the most accurate solution, we can still build a model which can predict suicide rates to an accuracy of 1.5 per 100,000 (~ 12% error rate). This may be useful, but it indicates that only half of the variation is explained by variables in the prevention profiles, and may not be thought sufficiently predictive to develop further. 
+When people think of machine learning they often think of 'big data', but although our data is not big in terms of size it is often complex and multivariate, and machine learning tools can equally well be applied to these datasets. In this example we have applied a machine learning pipeline to the suicide prevention profile which shows that although none of the models are very highly predictive,  glmnet produces the most accurate solution, and we can still build a model which can predict suicide rates to an accuracy of 1.5 per 100,000 (~ 12% error rate). This may be useful, but only half of the variation is explained by variables in the prevention profiles, and may not be thought sufficiently predictive to develop further. 
 
-Perhaps of more interest is the variable importance which seems to have face validity in terms of important predictors of population suicide rates - some of which are amenable to intervention.
+Perhaps of more interest is the variable importance which seems to have face validity in terms of identified predictors of population suicide rates - some of which are amenable to intervention.
 
 It may well be that there are additional data items in Fingertips database which can improve the predictive value of the model - this will require further work. It would be relatively straightforward to add area depression scores for example. To facilitate future iterations of this work we have created a data extraction and cleaning script (note the variable names are not automatically generated). 
+
 
 
 ## Conclusion
