@@ -235,10 +235,10 @@ lm_rmse <- lm_analysis %>%
 
 Model accuracy can be assessed in a number of ways:
 
-1. The R squared value which is a measure of the proportion the variation in the daa explained by the model. The nearer this is to 1 the better the model.
+1. The R squared value which is a measure of the proportion the variation in the data explained by the model. The nearer this is to 1 the better the model.
 2. Root mean squared error (RMSE) which measures how far on average, the model predictions are from the actual data. The nearer this is to 0 the more accurate the model.
 
-For the simple regression model these are `r rsq$r.squared` and `r lm_rmse$rmse` respectively. The RMSE suggests that on average, the model will predict suicide rates to wth 1.36 per 100,000 - which is a relative error of 13%.
+For the simple regression model these are `r rsq$r.squared` and `r lm_rmse$rmse` respectively. The RMSE suggests that on average, the model will predict suicide rates to within 1.36 per 100,000 - which is a relative error of 13%.
 
 From this model the variables which are most predictive of suicide rates are `r lm_tidy$term`.
 
@@ -258,9 +258,9 @@ lm_analysis %>%
 
 ## Machine learning
 
-We can apply machine learning algorithms to see if we can improve the predictive value of our models.
+We can apply machine learning algorithms to see if we can improve the predictive value of our models and avoid over-fitting - the problem of a model developed in one data set and appearing to perform well, doing badly when it is applied to a test or validation dataset.
 
-We'll split the data into training and test sets using random sampling and we'll do this 100 times over. This process is known as cross validation. It optimises the model and allows us to choose the most accurate model for further prediction. Of the algorithms included in this analysis, glmnet and random forest have the lowest RMSE and highest R squared - which admittedly is quite low at 0.5.
+Standard ML practice is to split the data into training and test sets using random sampling. Doing this many times over is known as cross-validation and helps optimise the model allowing us to choose the most accurate model for further prediction. Of the algorithms included in this analysis, glmnet and random forest have the lowest RMSE and highest R squared - which admittedly is quite low at 0.5.
 
 ```{r, fig.cap="Summary statistics for model accuracy", message=FALSE, warning=FALSE, cache=TRUE}
 
