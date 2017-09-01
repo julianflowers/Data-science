@@ -3,75 +3,52 @@ library(tidyverse)
 library(stringr)
 
 url <- "https://www.digitalmarketplace.service.gov.uk/g-cloud/suppliers"
+page <- read_html(url) %>% html_nodes("a") %>% html_attr("href")
+gs <- page[grepl(pattern =  "/g-cloud/supplier/", page)]
+gsurls <- map(gs, function(x) paste0("https://www.digitalmarketplace.service.gov.uk", x))
 
 ## function for extracting titles or text from urls
 exText <- function(url, node = "a"){
-  page <- read_html(url)
-  links <- page %>%
-    html_nodes(node) %>%
-    html_text
-  links <- as.tibble(links)
+  page <- read_html(url) %>% html_nodes("a") %>% html_attr("href")
+  gs <- page[grepl(pattern =  "/g-cloud/supplier/", page)]
+  gsurls <- map(gs, function(x) paste0("https://www.digitalmarketplace.service.gov.uk", x))  
+
+}
+test <- exText(url)
+
+
+
+suppliers_ABC <- paste0("https://www.digitalmarketplace.service.gov.uk/g-cloud/suppliers?prefix=",LETTERS)
+
+#suppliers <- links[grepl("supplier|suppliers", x = links)]
+
+## extract supplier ids
+listsup <- suppliers_ABC %>%
+  map(exText) %>% unlist()
+
+
+## create datatable of suppliers names, emails and descriptions
+df <- data.frame()
+for(i in seq_along(listsup)){
+
+l <- listsup[i] %>% read_html() %>% html_nodes("h1") %>% html_text()
+l <- gsub("\\n", "", l)
+supplier_name <- tm::stripWhitespace(l)
+
+l1 <- listsup[i] %>% read_html() %>% html_nodes(".supplier-description") %>% html_text()
+l1 <- gsub("\\n", "", l1)
+supplier_details <- tm::stripWhitespace(l1)
+
+l2 <- listsup[i] %>% read_html() %>% html_nodes("a") %>% html_text()
+supplier_email <- l2[grepl("@", l2)][2]
+
+
+df1 <- data.frame(cbind(supplier_name, supplier_details, supplier_email ))
+
+df <- bind_rows(df, df1)
 }
 
-test1 <- exText(suppliers_list[1:26]) 
-
-suppliers <- links[grepl("supplier|suppliers", x = links)]
-
-suppliers_list <- paste0("https://www.digitalmarketplace.service.gov.uk/g-cloud/suppliers?prefix=",LETTERS)
+df %>%
+  DT::datatable(filter = "top", caption = "G-Cloud suppliers" )
 
 
-listsup <- suppliers_list %>%
-  map(exText) %>% unlist %>% as.tibble()
-
-
-listsup_desc <- suppliers_list %>%
-  map(exText, node = "p") %>%
-  unlist() %>%
-  as.tibble()
-
-
-listsup_desc %>%
-  DT::datatable()
-
-
-
-## Identify suppliers by topic
-
-gcloudTopic <- function(search = "health"){
-
-
-listsup_desc %>%
-    filter(stringr::str_detect(value, "search")) %>%
-    DT::datatable()
-  
-  
-}
-
-gcloudTopic("[Dd]ata")
-
-##
-
-supplier1 <- read_html("https://www.digitalmarketplace.service.gov.uk/g-cloud/supplier/702547")
-
-
-
-
-ex1 <- exText("https://www.digitalmarketplace.service.gov.uk/g-cloud/supplier/702547")
-
-supplier_email <- function(id = 702547){
-  
-  url <- paste0("https://www.digitalmarketplace.service.gov.uk/g-cloud/supplier/", id)
-  
-  ex <- exText(url)
-  
-  emails <- ex %>%
-    filter(stringr::str_detect(value, "@"))
-  
-  emails[2, ]
-  
-}
-
-
-gcloudTopic(search = "[Bb]ig [Dd]ata")
-
-supplier_email(700018)
