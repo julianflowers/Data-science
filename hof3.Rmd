@@ -1,0 +1,340 @@
+---
+title: "Public health data science"
+author: "Julian Flowers"
+date: "`r Sys.Date()`"
+output: 
+  ioslides_presentation: 
+    fig_caption: yes
+    incremental: yes
+    smaller: yes
+    widescreen: yes
+bibliography: bib.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+```
+
+```{r, cache=TRUE}
+library(tidyverse)
+library(fingertipsR)
+data <- fingertips_data(ProfileID = 26,
+                        AreaTypeID = c(101, 102), inequalities = FALSE)
+
+```
+
+## What is public health data science?
+
+* Data science
+    + New analytical thinking from describing -> doing
+    + New data thinking - big data/ unstructured/ open/ linked/ text/ graph data
+    + Mainstreaming novel analytical techniques - text mining and NLP, machine learning/ models/ network analysis/ time series...
+    + Blending software engineering, ICT, statistical and digital skills and tools with analysis
+    
+* PHDS all this + epidemiology/ ph domain knowledge (topic and data) / population perspective -> applications - monitor (past); surveillance (present); model (future)
+
+    
+
+## Public Health Intelligence 2.0
+
+
+
+
+## Public health intellgence 2.0
+
+PHI 1.0 (now)                   |  PHI 2.0 (next)
+--------------------------------|-------------------------------
+ Profiling               =>     | Analysis and insight
+ Collation and description =>   | Prediction and prescription
+ Excel/ stats packages   =>     | R/ Python/ PowerBI
+ Static                  =>     | Interactive 
+ Manual                  =>     | Automated
+ Waterfall               =>     | Agile
+ User feedback           =>     | User need
+ Epidemiology and stats  =>     | Epidemiology + models + machine learning
+ Structured/ small data  =>     | Unstructured/ big data
+    
+## Reproducibility
+
+* Reproducibility is the ability of an entire analysis of an experiment or study to be duplicated, either by the same researcher or by someone else working independently, whereas reproducing an experiment is called replicating it. <https://en.wikipedia.org/wiki/Reproducibility>
+* Requires sharing method, results, data and code
+* From an analysts point of view QA is much easier if analysis is made reproducible from the outset, and uses code.
+* GDS are promoting the idea of a 'reproducible analytical pipeline' - see for example <https://github.com/ukgovdatascience/eesectorsmarkdown> (using R Markdown)
+* This approach reduces the number of steps in the production process, automates production and QA,  improves collaboration and is quicker to produce
+
+## Version control
+
+* Reproduciblity requires **version control**
+* There are software systems for doing this. PHE uses:
+    + Github for external sharing <https://github.com/PublicHealthEngland>
+    + Gitlab for internal sharing <https://gitlab.phe.gov.uk>
+* Gitlab is available via PHE username and password. The Github account is managed by PHE Digital
+* This kind of version control system has a number of features:
+    + A database of all your work (known as a repository or repo)
+    + A system for storing any changes you make (known as *commits* and *pushes*)
+    + Backup of all your work
+    + Ability to easily rewind to any point and undo any change
+    + Ability for others to make changes (*branching*) and collaborate
+    + Tools to publish prototypes, demos, web pages 
+
+## Tidy data
+
+* 'Tidy' data is an important data science concept [@Wickham2014]
+* It refers to a data format which is normalised i.e. there is one row per observation, one column per value variable, one table per concept and data cells contain only values
+* `tidyverse` is a series of *R* packages to help get data into a tidy format
+* Tidy data is much easier to share, manage and analyse
+* Data which is not tidy is *messy*
+* Tidy data is in 'long' format
+* `ggplot2` needs data in tidy format
+* Wide data is needed for column by column by comparison
+
+    
+## Shiny
+
+* *Shiny* is the web framework for R. It requires **no** knowledge of web languages like HTML or JavaScript
+* You can use Shiny to create interactive web apps, interactive documents, "gadgets" which can be embedded in web pages
+* It does require some knowledge of R and the syntax for Shiny takes a little learning but its possible to build powerful tools in days rather than weeks or months
+* Shiny apps can be hosted 
+    + externally on Github, shinyapps.io or other sites, or
+    + internally on PHE's Shiny server
+* Examples:
+    + https://github.com/rstudio/shiny-examples
+    + http://pct.bike/
+    
+## Analytical approaches
+
+* *Summarise-visualise*  - a first step in analysing any large dataset is to create summary statistics, and visualise the data to look at distributions (density plots, box plots), looking for missing data
+* *Split-apply-combine* - where data is grouped, splitting into groups, applying analysis to each group and recombining the results
+
+
+
+## Infant mortality trends - split-apply-combine example
+
+```{r, echo = FALSE, eval = TRUE}
+data %>%
+ 
+    ## select indicator
+  filter(IndicatorName == "Infant mortality", AreaType == "Region") %>% 
+    ## convert time to numeric
+  mutate(time = as.numeric(substr(Timeperiod, 1,4))) %>%   
+    ## split by Region
+  group_by(AreaName) %>%    
+  ggplot(aes(time, Value)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = LowerCIlimit, ymax = UpperCIlimit), fill = "blue", alpha = 0.3) +
+  geom_smooth(method = "lm", colour = "red", lty = "dotted", lwd = 0.5 ) +
+  facet_wrap(~AreaName) +
+  labs(title = "Trends in infant mortalty", 
+       y = "Infant mortality (deaths per 1000 births)", 
+       x = "Year", 
+       caption = "Source: Fingertips")
+  
+```
+
+## Regional infant mortality trends - using split-apply-combine 
+
+- Fitting a linear model to each region
+- Linear trends fit well to trends in infant mortality
+
+```{r, echo= FALSE, results="asis"}
+
+options(digits = 2)
+
+
+data %>%
+ 
+    ## select indicator
+  filter(IndicatorName == "Infant mortality", AreaType == "Region") %>% 
+    ## convert time to numeric
+  mutate(time = as.numeric(substr(Timeperiod, 1,4))) %>%   
+    ## split by Region
+  group_by(AreaName) %>%    
+    ## fit linear model of infant mortality                                                                  ##trend for each region and extract key values
+  do(broom::glance(lm(.$time ~ .$Value))) %>%   
+    ## combine results
+  select(1:3, 6) %>%
+  knitr::kable()                                                        
+
+
+```
+
+## Machine learning
+
+- Training computers to perform tasks without explicit programming
+- In data terms 5 types of problem can be answered with machine learning techniques (algorithms)
+    + *Classification* - yes/no outcomes -  does some one have a disease? Was an objective achieved?
+       - The algorithms include logistic regression, neural networks and deep learning, random forests and support vector machines
+    + *How much?* - regression type analysis. Algorithms include linear and non-linear regression; penalised regression (e.g. Lasso)
+    + *Is it unusual?* Identifying anomalies, unexpected results, outliers. Algorithms include time series analysis, anomaly detection algorithms, regression models
+    + *Is there strucutre or pattern in the data?* - this is sometimes called unsupervised machine learning where the analysis is completely data driven. Algortihms clustering and principal components analysis. The previous examples are *supervised* - we train models where we already know the answer, and see how well they apply where we don't
+    + *Learning from data* - recommender systems (e.g. Amazon) and reinforcement learning where models are constantly tuned with new information and feedback. Algorithms include `Arules` and `apriori`.
+    
+
+
+
+## R and R Studio
+
+* R is a *statistical programming language*
+* R Studio is a *development environment* or (IDE)
+* Most people use R in the R Studio environment to undertake analyses, write reports, process data etc.
+* The latest version of *R* is 3.4 and R Studio 1.0.143 - we want R users to have these installed
+* R can be downloaded [here](https://cran.r-project.org/bin/windows/base/R-3.4.0-win.exe)
+* R Studio can be downloaded [here](https://download1.rstudio.org/RStudio-1.0.143.exe)  
+
+## R Markdown
+
+* *R Markdown* is a format for creating reports
+* You can download your data, do your analysis, create your charts or visualisations, write narrative, and publish your document as HTML or Word (or pdf) all in `R Markdown`
+* You can share markdown documents for others to work on and collaborate
+* These slides are made in R Markdown and the code is available [here]()
+
+
+
+
+## R packages
+
+* When you download R you get the *base* version
+* To make the most of R you need to download additional "packages" along the lines of
+
+```{r, eval = FALSE, echo=TRUE}
+
+install.packages("tidyverse")
+library(tidyverse)
+
+```
+
+* A list of recommended packages and their uses is available as a [separate document]() 
+* We recommend for most purposes that packages should only be used if available from [CRAN](https://cran.r-project.org/)
+
+## `fingertipsR`
+
+* Is a package available from CRAN to designed to make it easy to get and reuse data from [Fingertips](https://fingertips.phe.org.uk/api)  
+* Has 6 main functions:
+    + `profiles()`  - returns a list of profiles and domains in Fingertips
+    + `indicators()` - returns a list of indicators in a profile or set of profiles
+    + `fingertips_data()`  - returns the data for a single indicator, set of indicators or set of profiles
+    + `area_types()` - returns the area types for which data is available
+    + `indicator_metadata()` - returns the metadata for indicators or profiles
+    + `deprivation()` - returns the deprivation scores for local authorities  
+    
+##  `fingertipsR` (2)  
+
+* More information is available [here](https://github.com/PublicHealthEngland/fingertipsR)
+* This code will download all the Health Profile data for counties, upper tier and lower tier local authorities. Replacing with `ProfileID = 19` downloads all the PHOF data
+
+```{r, eval = FALSE, echo=TRUE}
+library(fingertipsR)
+data <- fingertips_data(ProfileID = 26,AreaTypeID = c(101, 102), 
+                        inequalities = FALSE)
+
+```
+
+## Like this:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, results='asis'}
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, results='asis'}
+data %>% 
+  sample_n(5) %>%
+  select(IndicatorName, AreaName, Timeperiod, Value, LowerCIlimit, UpperCIlimit) %>%
+  knitr::kable()
+```
+
+## `ggplot2`
+
+* R enables production of a wide variety of publication quality graphics and maps
+* There are 3 'frameworks' for charting:
+    + Base plotting
+    + Lattice
+    + ggplot2
+* ggplot2 is obtained by `install.pacakges("ggplot2")` or `install.packages("tidyverse")` and is the preferred framework
+* There is a government ggplot2 theme and we are developing a PHE one
+
+## `ggplot2` example
+
+```{r, echo = FALSE}
+library(tidyverse)
+data %>%
+  filter(stringr::str_detect(IndicatorName, "Life"), AreaType == "Region") %>%
+  ggplot(aes(Timeperiod, Value)) +
+  geom_boxplot(fill = "aliceblue") +
+  facet_wrap(~AreaName) +
+  labs(title = "Trends and variation in local authority life expectancy by region:", 
+       subtitle = "Rate of increase slowing but variation reducing",
+       y = "Years")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+  
+
+
+
+```
+
+## `ggplot2` example 2 - faceted maps
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(ggmap)
+library(geojsonio)
+library(gganimate)
+library(viridis)
+
+ds <- data %>%
+  filter(stringr::str_detect(IndicatorName, "Life"), AreaType == "District & UA", Sex == "Male") 
+
+shape <- geojson_read("https://opendata.arcgis.com/datasets/686603e943f948acaa13fb5d2b0f1275_3.geojson", what = "sp")
+
+shape <- subset(shape, substr(lad16cd, 1, 1) == "E")
+shape1 <- fortify(shape, region = "lad16cd")
+
+shape1 %>%
+  left_join(ds, by = c("id" = "AreaCode")) %>%
+  filter(!is.na(Timeperiod)) %>%
+  ggplot() + 
+  geom_polygon( aes(long, 
+                    lat, 
+                    group = group, 
+                    fill = Value)) +
+  facet_wrap(~Timeperiod, nrow = 3 ) +                
+  coord_map() +
+  theme_minimal() +
+  scale_fill_viridis(direction = -1, name = "Life expectancy") +
+  labs(title = "Trends in life expectancy", 
+       y = "", 
+       x = "") +
+  theme(axis.text = element_blank(), 
+        panel.grid = element_blank())
+
+
+```
+
+
+
+## R resources for Public Health Intelligence
+
+* R Packages
+    + `phutils` - a collection of useful tools developed by David Whiting at Medway Council
+    + `epitools` - epidemiological analysis
+    + `surveillance` - tools for surveillance including ones used by PHE communicable disease control
+    
+* Blogs and books
+    + [R for public health blog](http://rforpublichealth.blogspot.co.uk/)
+    + [Population health data science](https://bookdown.org/medepi/phds/)
+    + [R 4 Data Science]()
+
+## Learning R
+
+* DataCamp
+* Coursera Data science
+* the aRt of the possible
+* R 4 Data Science
+* Ask
+* Try
+* Google
+* Stack Overflow
+* PHE questions
+    
+                                |
+## References   
