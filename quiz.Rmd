@@ -1,8 +1,10 @@
 ---
-title: "Test yourself health data trends"
+title: 'Trends in health indicators: how well do you know them?'
 author: "Julian Flowers"
 date: "10/08/2017"
-output: slidy_presentation
+output:
+  ioslides_presentation: default
+  slidy_presentation: default
 ---
 
 ```{r setup, include=FALSE, cache=TRUE}
@@ -42,8 +44,8 @@ draw_chart <- function(df, i = 6){
   draw_start = endDate,
   x_key = "date",
   y_key = "value",
-  y_min = min(df$value) * .9,
-  y_max = 1.1 *max(df$value),
+  y_min = min(df$value) * .8,
+  y_max = 1.2 *max(df$value),
   width="100%"
   )
 }
@@ -76,7 +78,11 @@ draw <- dataset %>%
 
 draw_chart(draw)
 
+
+
 ```
+
+
 
 ## `r dataset %>% filter(IndicatorID == 92432) %>% select(IndicatorName) %>% distinct()`
 
@@ -90,6 +96,9 @@ draw <- dataset %>%
   select(date, value = Value)
 
 draw_chart(draw)
+
+
+
 ```
 
 
