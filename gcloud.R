@@ -10,7 +10,7 @@ gs <- page[grepl(pattern =  "/g-cloud/supplier/", page)]
 gsurls <- map(gs, function(x) paste0("https://www.digitalmarketplace.service.gov.uk", x))
 
 ## function for extracting titles or text from urls
-exText <- function(url, node = "a"){
+exText <- function(url){
   page <- read_html(url) %>% html_nodes("a") %>% html_attr("href")
   gs <- page[grepl(pattern =  "/g-cloud/supplier/", page)]
   gsurls <- map(gs, function(x) paste0("https://www.digitalmarketplace.service.gov.uk", x))  
@@ -18,18 +18,16 @@ exText <- function(url, node = "a"){
 }
 test <- exText(url)
 
-
+## URLs
 
 suppliers_ABC <- paste0("https://www.digitalmarketplace.service.gov.uk/g-cloud/suppliers?prefix=",LETTERS)
-
-#suppliers <- links[grepl("supplier|suppliers", x = links)]
 
 ## extract supplier ids
 listsup <- suppliers_ABC %>%
   map(exText) %>% unlist()
 
 
-## create datatable of suppliers names, emails and descriptions
+## for loop to create datatable of suppliers names, emails and descriptions
 df <- data.frame()
 for(i in seq_along(listsup)){
 
@@ -50,6 +48,7 @@ df1 <- data.frame(cbind(supplier_name, supplier_details, supplier_email ))
 df <- bind_rows(df, df1)
 }
 
+## datatable                
 df %>%
   DT::datatable(filter = "top", caption = "G-Cloud suppliers" )
 
