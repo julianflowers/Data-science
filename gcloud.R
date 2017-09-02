@@ -2,6 +2,8 @@ library(rvest)
 library(tidyverse)
 library(stringr)
 
+## Scsript to extract a table of G-Cloud suppliers to make it easier to find relevant ones
+
 url <- "https://www.digitalmarketplace.service.gov.uk/g-cloud/suppliers"
 page <- read_html(url) %>% html_nodes("a") %>% html_attr("href")
 gs <- page[grepl(pattern =  "/g-cloud/supplier/", page)]
