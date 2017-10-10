@@ -1,0 +1,105 @@
+---
+title: "gp_data"
+author: "Julian Flowers"
+date: "10/10/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE, message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(fingertipsR)
+library(stringr)
+
+
+```
+
+## Load data
+
+
+```{r gp-data, cache=TRUE}
+
+ds <- data.table::fread("~/gpdata_analysis")
+```
+
+
+```{r}
+
+
+## Check indicators
+
+ds %>%
+  select(IndicatorID) %>%
+  unique() -> indlist
+```
+
+```{r}
+## get metadata
+
+metadata <- fingertipsR::indicator_metadata(IndicatorID = indlist$IndicatorID)
+
+metadata <- metadata %>%
+  select(IndicatorID, Indicator, `Data source`) %>%
+  mutate(qof = str_detect(`Data source`, "[Qq][Oo][Ff]"))
+```
+
+
+```{r}
+options(digits = 2, scipen = 999)
+
+england_values <- ds %>%
+  filter(AreaName == "England") %>%
+  select(IndicatorName, IndicatorID, AreaCode, Timeperiod, England = Value )
+
+ds %>%
+  group_by(IndicatorName, Timeperiod) %>%
+  summarise(no_practices = n(),
+            min = min(Value, na.rm = TRUE), 
+            q1 = quantile(Value, probs = 0.1, na.rm = TRUE), 
+            mean = mean(Value, na.rm = TRUE),
+            median = median(Value, na.rm = TRUE), 
+            q9 = quantile(Value, probs = 0.9, na.rm = TRUE), 
+            max = max(Value, na.rm = TRUE), 
+            idr = round(q9/q1, 3)) %>%
+  left_join(england_values, by = c("IndicatorName", "Timeperiod")) %>%
+  select(-AreaCode, -IndicatorID) %>%
+  DT::datatable(filter = "top") %>%
+                DT::formatRound(c("min", "q1", "mean", "median", "q9", "max", "idr", "England"),  2)
+
+```
+
+## Heatmap
+
+
+```{r heatmap, echo=FALSE, fig.height=12, fig.width=12, cache=TRUE}
+
+ds1 <- ds %>%
+  left_join(england_values, by = c("IndicatorName", "Timeperiod")) %>%
+  left_join(metadata, by = c("IndicatorName" = "Indicator"))
+
+ds_qof <- ds1 %>%
+  filter(qof == TRUE)
+
+ds_qof %>%
+  group_by(IndicatorName) %>%
+  filter(TimeperiodSortable == max(TimeperiodSortable)) %>%
+  select(IndicatorID, IndicatorName, ParentName, AreaCode.x, AreaName, AreaType, Timeperiod, Value, LowerCI95.0limit, UpperCI95.0limit,  England) %>%
+  mutate(significance = ifelse(LowerCI95.0limit > England, "High", 
+                               ifelse(UpperCI95.0limit < England, "Low", "Normal"))) %>%
+  arrange(AreaName) %>%
+  ungroup() %>%
+  mutate(IndicatorName = str_replace_all(IndicatorName, "\\\n", "")) %>%
+  select(ParentName, AreaCode.x, AreaName, IndicatorID, IndicatorName, significance) %>%
+  distinct(ParentName, AreaCode.x, AreaName, IndicatorName, significance) %>%
+  ggplot(aes(IndicatorName, AreaCode.x)) +
+  geom_tile(aes(fill = significance)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        axis.text.y = element_text(size = 8)) +
+  scale_fill_manual(values = c("red", "green", "goldenrod")) +
+  labs(y = "", 
+       x = "") 
+
+
+```
+
