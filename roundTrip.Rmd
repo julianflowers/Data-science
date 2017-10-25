@@ -1,0 +1,48 @@
+---
+title: "Trip search"
+author: "Julian Flowers"
+date: "24/10/2017"
+output: slidy_presentation
+params:
+  search_text: "data+science+public+health"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Test trip
+
+* Searching the [Trip database](https://www.tripdatabase.com/)
+* Via the API
+* PHE experimenting (has API key)
+
+
+for multiple terms use + sign e.g "copd+tobacco"
+
+```{r, echo = FALSE,  cache = TRUE, include = FALSE}
+source("trip_search.R")
+
+```
+
+## Search
+
+```{r, message=FALSE, echo=TRUE}
+
+search <- params$search_text
+
+## "data+science+public+health" 
+
+test <- trip_searchR(search, n = 5000) 
+```
+
+## Results
+
+```{r}
+test %>%
+  mutate(date = substring(date, 1, 16)) %>%
+  DT::datatable(filter = "top")
+
+
+```
+

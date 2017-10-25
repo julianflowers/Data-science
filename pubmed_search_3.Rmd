@@ -1,0 +1,330 @@
+---
+title: 'Pubmed2: a workflow for extracting and analysing Pubmed abstracts'
+output:
+  slidy_presentation:  
+    
+  html_notebook:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+  html_document:
+    toc: yes
+params:
+  search_text: "data science + public health[mh]"    
+---
+```{r setup, include=FALSE, echo=FALSE}
+
+knitr::opts_chunk$set(cache = TRUE, echo = FALSE, warning = FALSE, message = FALSE)
+
+
+```
+
+
+# Motivation
+
+This presentation was inspired by a recent meeting to discuss public health data science. It outlines a method for rapidly searching the Pubmed database and analysing retrieved abstracts. We are interested in rapidly assessing the literature on the extent of discussion or application of data science in public health research and practice.
+
+# R for literature searching
+
+* Lots of packages
+* `RISmed` used here <https://cran.r-project.org/web/packages/RISmed/RISmed.pdf>
+* Others include `rentrez`, `pubmed.mineR`, 
+* [R Open Science](https://ropensci.org/packages/) - lots of packages e.g.
+     + `aRxiv`
+     + `fulltext`
+     + `rcrossref`
+     + `rplos`
+     + `rspringer`
+
+# Method
+
+We used the `RISmed` package which provides an `R` interface to the Pubmed API to extract and analyse the most recent abstracts retrieved via a very non-specific search strategy. We used cluster analysis (topic modelling) to group and classify abstracts. We also searched the abstracts for the terms *data science* and *big data* and conclude there is currently a very small literature on data science in public/ population health and there is a potential large research agenda to help us understand how we can apply emerging data management and analytic techniques in modern public health practice.
+
+# Load libraries
+
+Libraries used
+
+* `tidyverse`
+* `RISmed`
+* `wordcloud`
+* `tidytext`
+* `tm`
+* `topicmodels`
+
+```{r load libraries, include=FALSE}
+library(tidyverse)
+library(stringr)
+library(RISmed)
+library(wordcloud)
+library(tidytext)
+library(tm)
+library(topicmodels)
+suppressPackageStartupMessages(library(viridis))
+library(glue)
+if(!require(text2vec))install.packages("text2vec")
+library(text2vec)
+library(LDAvis)
+```
+
+# Send search
+
+Next, we'll query the Pubmed API via the RISmed package. We'll use a broad search strategy.
+
+```{r run search}
+
+search_term <- params$search_text
+## search term = data science + public health[mh]
+
+res1 <- EUtilsSummary(search_term, 
+                      type = "esearch", 
+                      db = "pubmed",
+                      datetype = "pdat",
+                      maxdate = 2017, 
+                      retmax = 10000
+                      )
+
+```
+
+The query sent to Pubmed is `r res1@querytranslation` which retrieves `r formatC(res1@count, format = "d")` Pubmed entries. The query string shows that data science is not a current MESH heading.
+I have restricted the downloads in the interests of time and limitations on the Pubmed API.
+
+# Retrieve results
+
+```{r retrieve pubmed entries, cache= TRUE}
+
+res1@count
+res1@querytranslation %>%
+  knitr::asis_output()
+
+fetch <- EUtilsGet(res1, type = "efetch", db = "pubmed")
+
+# auth <-Author(EUtilsGet(res1))
+# 
+# typeof(auth)
+# 
+# Last <-sapply(auth, function(x) paste(x$LastName))
+
+```
+
+
+# Create data frame
+
+```{r extract fields and convert to data frame}
+abstracts <- data.frame(title = fetch@ArticleTitle,
+                        abstract = fetch@AbstractText, 
+                        journal = fetch@Title,
+                        DOI = fetch@PMID, 
+                        year = fetch@YearPubmed)
+
+
+
+## ensure abstracts are character fields (not factors)
+abstracts <- abstracts %>% mutate(abstract = as.character(abstract))
+
+head(abstracts) %>%
+  knitr::kable()
+ 
+
+```
+
+# Plot results over time
+
+```{r plot article count per year}
+abstracts %>%
+  group_by(year) %>%
+  tally() %>%
+  ggplot(aes(year, n)) +
+  geom_col() +
+  labs(title = paste("Pubmed articles with search terms", search_term),  hjust = 0.5,
+       y = "Articles")
+
+```
+
+The total number of abstracts was `r nrow(abstracts)`.
+
+# Word cloud
+
+Using the `tidytext` framework makes it easy to create wordclouds.
+
+```{r wordcloud, fig.height=6, fig.width=6}
+library(stringr)
+abs <- tolower(abstracts$abstract)
+abs <- str_replace_all(abs, "[^[:alnum:]]", " ") 
+abs <- str_replace_all(abs, "\\s+", " ")
+abs1 <- data.frame(cbind(id = abstracts$DOI, abs = as.character(abs))) %>%
+  mutate(abs = as.character(abs))
+```
+
+
+
+```{r}
+
+
+cloud <- abstracts %>%
+  unnest_tokens(word, abstract) %>%
+  anti_join(stop_words) %>%
+  dplyr::count(word, sort = TRUE) 
+  
+cloud %>%
+with(wordcloud(word, n, min.freq = 10, max.words = "Inf", colors = brewer.pal(8, "Dark2")), scale = c(8,.3), per.rot = 0.4)
+
+```
+
+# Create bigrams
+
+Bigrams - two word tokens - may provide more insight into the content of abstracts
+
+```{r extract and plot bigrams,  message=FALSE, warning=FALSE}
+ds_bigrams <- abstracts %>%
+  unnest_tokens(ngram, abstract, token = "ngrams", n=2) %>%
+  dplyr::count(ngram, sort = TRUE)
+
+
+
+bigrams_separated <- ds_bigrams %>%
+  separate(ngram, c("word1", "word2"), sep = " ")
+
+bigrams_filtered <- bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) 
+
+bigrams_filtered
+
+
+
+bigrams_united <- bigrams_filtered %>%
+  mutate(bigram = paste(word1, word2, sep = " ") )
+
+bigrams_united %>%
+  filter(n >500) %>%
+  ggplot(aes(reorder(bigram, n), n)) +
+  geom_point() +
+  coord_flip() +
+  theme(axis.text.x = element_text(size  = 10)) +
+  labs(title = "Bigrams with frequency count > 25", x = "")
+```
+
+
+# Bigram wordcloud
+
+```{r bigram wordcloud, fig.height=6, fig.width=6}
+bigrams_united %>%
+  with(wordcloud(bigram, n, max.words = 1000, random.order = FALSE, colors = brewer.pal(9, "Set1"), scale = c(8, 0.3)), per.rot = 0.4)
+
+```
+
+
+
+# Journal wordlcoud
+
+```{r, fig.height=6, fig.width=6}
+cloud3 <- abstracts %>%
+  select(journal) %>%
+  group_by(journal) %>%
+  tally(sort = TRUE)
+
+cloud3 %>%
+  with(wordcloud(journal, n, min.freq = 10, random.order = FALSE, max.words = 80, colors = brewer.pal(9, "Set1")), rot.per = .6)
+```
+
+# Extract abstracts containing the phrase 'data science or big data'
+
+```{r abstract which mention data science}
+ g <- abstracts[grepl("data science| big data| social media", abstracts$abstract),]
+
+ g %>%
+   knitr::kable()
+ 
+ # 
+ g1 <- g$DOI %>% list
+ abstracts <- abstracts %>%
+   mutate(DOI  = as.character(DOI))
+
+ g2 <- abstracts[abstracts$DOI %in% g1[[1]],] %>%
+   select(title, abstract, journal, DOI) 
+
+ 
+ 
+```
+
+# Topic models
+
+```{r}
+
+g2$abstract <- tolower(g2$abstract)
+g2$abstract <- stripWhitespace(g2$abstract)
+g2$abstract <- removePunctuation(g2$abstract)
+g2$abstract <- removeNumbers(g2$abstract)
+
+## bigrams
+
+textPubs <- g2 %>% 
+  group_by(DOI) %>%
+  unnest_tokens(bigram, title, token = "ngrams", n = 2) %>%
+  dplyr::count(DOI, bigram)
+
+pubs_sep1 <- textPubs %>%
+  separate(bigram, c("word1", "word2"), sep = " ") 
+
+
+## and filter out the 'stop words'
+
+pubs_filt1 <- pubs_sep1 %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+  
+## and recombine
+
+pubs_new1 <- pubs_filt1 %>%
+  mutate(bigram = paste(word1, word2, sep = " "))
+
+## dtm
+
+corp_dtm <- pubs_new1 %>%
+  cast_dtm(DOI, bigram, n)
+
+corp_lda <- LDA(corp_dtm, k = 5, control = list(seed = 1234))
+
+corp_tidy_lda <- tidy(corp_lda)
+
+corp_tidy_lda %>%
+  group_by(topic) %>%
+  top_n(1000, beta) %>%
+  arrange(topic, -beta) %>% 
+  ggplot(aes(term, beta, fill = factor(topic), label = term)) +
+  geom_bar(stat = "identity") +
+  geom_text(hjust = -0.2, size = 2, check_overlap = TRUE) +
+  facet_wrap(~topic, ncol =3) +
+  coord_polar() +
+   theme_bw()+
+  
+  labs(fill = "Topic", y = "" , x = "") +
+  expand_limits(y = c(0, .1)) + 
+  theme(legend.position = "", axis.text.y = element_blank(), axis.ticks = element_blank(), axis.text.x = element_blank())
+ 
+
+```
+
+# Classifying documents
+
+```{r document classification}
+lda_gamma <- tidytext:::tidy.LDA(corp_lda, matrix = "gamma")
+
+abs_class <- lda_gamma %>%
+  group_by(document) %>%
+  top_n(1, gamma) %>%
+  ungroup() %>%
+  arrange(gamma)
+
+abs_class %>%
+  left_join(g2, by = c("document" = "DOI")) %>%
+  select(-gamma, -abstract, -journal) %>%
+  DT::datatable(filter = "top" )
+
+
+  
+
+
+```
